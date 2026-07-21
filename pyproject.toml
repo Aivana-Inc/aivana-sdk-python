@@ -1,0 +1,26 @@
+[project]
+name = "aivana"
+version = "0.1.0"
+description = "Aivana Intelligence API — Python SDK"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+keywords = ["ai", "llm", "intelligence", "api", "aivana"]
+dependencies = [
+    "httpx>=0.27",
+    "pydantic>=2",
+]
+
+[project.urls]
+Homepage = "https://github.com/Aivana-Inc/aivana-sdk-python"
+Repository = "https://github.com/Aivana-Inc/aivana-sdk-python"
+Issues = "https://github.com/Aivana-Inc/aivana-sdk-python/issues"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["aivana*"]
