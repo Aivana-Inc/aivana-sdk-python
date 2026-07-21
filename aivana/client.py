@@ -34,13 +34,14 @@ def _headers() -> dict[str, str]:
 def _body(
     prompt: Optional[str],
     mode: str,
-    temperature: float,
+    temperature: Optional[float],
     metadata: Optional[dict],
     messages: Optional[list[dict]] = None,
     previous_intent: Optional[str] = None,
     pending_action: Optional[str] = None,
+    max_tokens: Optional[int] = None,
 ) -> dict:
-    body: dict[str, Any] = {"mode": mode, "temperature": temperature}
+    body: dict[str, Any] = {"mode": mode}
     if prompt:
         body["prompt"] = prompt
     if messages:
@@ -51,6 +52,14 @@ def _body(
         body["pending_action"] = pending_action
     if metadata:
         body["metadata"] = metadata
+    # Generation params are OMITTED unless the caller set one. A client-side
+    # default would make "I didn't choose" indistinguishable from "I chose this",
+    # permanently shadowing the engine's per-intent temperature and its
+    # depth-derived token budget.
+    if temperature is not None:
+        body["temperature"] = temperature
+    if max_tokens is not None:
+        body["max_tokens"] = max_tokens
     return body
 
 
@@ -67,7 +76,8 @@ def generate(
     prompt: str,
     *,
     mode: str = "aivana_mmi",
-    temperature: float = 0.7,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
     stream: bool = False,
     metadata: Optional[dict] = None,
     timeout: float = 120.0,
@@ -83,14 +93,16 @@ def generate(
     """
     if stream:
         return _sync_stream(prompt, mode, temperature, metadata, timeout,
-                            previous_intent=previous_intent, pending_action=pending_action)
+                            previous_intent=previous_intent, pending_action=pending_action,
+                            max_tokens=max_tokens)
 
     with httpx.Client(timeout=timeout, base_url=api_base) as client:
         resp = client.post(
             "/v1/generate",
             headers=_headers(),
             json=_body(prompt, mode, temperature, metadata,
-                       previous_intent=previous_intent, pending_action=pending_action),
+                       previous_intent=previous_intent, pending_action=pending_action,
+                       max_tokens=max_tokens),
         )
         _check(resp)
         return GenerateResponse(**resp.json())
@@ -105,9 +117,11 @@ class Chat:
         print(chat.send("Yes, give me an example").answer)
     """
 
-    def __init__(self, *, mode: str = "aivana_mmi", temperature: float = 0.7, timeout: float = 120.0):
+    def __init__(self, *, mode: str = "aivana_mmi", temperature: Optional[float] = None,
+                 max_tokens: Optional[int] = None, timeout: float = 120.0):
         self.mode = mode
         self.temperature = temperature
+        self.max_tokens = max_tokens
         self.timeout = timeout
         self.messages: list[dict] = []
         self._last_intent: Optional[str] = None
@@ -119,6 +133,7 @@ class Chat:
             prompt=None,
             mode=self.mode,
             temperature=self.temperature,
+            max_tokens=self.max_tokens,
             metadata=metadata,
             messages=self.messages,
             previous_intent=self._last_intent,
@@ -142,13 +157,15 @@ class Chat:
 
 
 def _sync_stream(
-    prompt: str, mode: str, temperature: float, metadata: Optional[dict], timeout: float,
+    prompt: str, mode: str, temperature: Optional[float], metadata: Optional[dict], timeout: float,
     *,
     previous_intent: Optional[str] = None,
     pending_action: Optional[str] = None,
+    max_tokens: Optional[int] = None,
 ) -> Iterator[StreamChunk]:
     body = _body(prompt, mode, temperature, metadata,
-                 previous_intent=previous_intent, pending_action=pending_action)
+                 previous_intent=previous_intent, pending_action=pending_action,
+                       max_tokens=max_tokens)
     with httpx.Client(timeout=timeout, base_url=api_base) as client:
         with client.stream("POST", "/v1/generate:stream", headers=_headers(), json=body) as resp:
             _check(resp)
@@ -160,7 +177,8 @@ async def generate_async(
     prompt: str,
     *,
     mode: str = "aivana_mmi",
-    temperature: float = 0.7,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
     metadata: Optional[dict] = None,
     timeout: float = 120.0,
     previous_intent: Optional[str] = None,
@@ -171,7 +189,8 @@ async def generate_async(
             "/v1/generate",
             headers=_headers(),
             json=_body(prompt, mode, temperature, metadata,
-                       previous_intent=previous_intent, pending_action=pending_action),
+                       previous_intent=previous_intent, pending_action=pending_action,
+                       max_tokens=max_tokens),
         )
         _check(resp)
         return GenerateResponse(**resp.json())
@@ -181,14 +200,16 @@ async def generate_stream(
     prompt: str,
     *,
     mode: str = "aivana_mmi",
-    temperature: float = 0.7,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
     metadata: Optional[dict] = None,
     timeout: float = 120.0,
     previous_intent: Optional[str] = None,
     pending_action: Optional[str] = None,
 ) -> AsyncIterator[StreamChunk]:
     body = _body(prompt, mode, temperature, metadata,
-                 previous_intent=previous_intent, pending_action=pending_action)
+                 previous_intent=previous_intent, pending_action=pending_action,
+                       max_tokens=max_tokens)
     async with httpx.AsyncClient(timeout=timeout, base_url=api_base) as client:
         async with client.stream("POST", "/v1/generate:stream", headers=_headers(), json=body) as resp:
             _check(resp)
