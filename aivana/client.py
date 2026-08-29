@@ -6,7 +6,7 @@ from typing import Any, AsyncIterator, Iterator, Optional
 import httpx
 
 from aivana.envelopes import GenerateResponse, StreamChunk
-from aivana.exceptions import AivanaError, from_error_payload
+from aivana.exceptions import AivanaError, InvalidRequestError, from_error_payload
 
 
 # Module-level config (Stripe-style)
@@ -72,72 +72,216 @@ def _check(resp: httpx.Response) -> None:
         raise from_error_payload(payload, resp.status_code)
 
 
-def generate(
-    prompt: str,
+# Every field the wire accepts, in one place. Five entrypoints used to repeat
+# this list in their own signatures, and that is precisely how this SDK drifted
+# out of sync with the Node one: `system`, `attachments` and `output_shape` were
+# added to the API and to @aivana/sdk, and a Python caller's system prompt was
+# silently dropped client-side — the request looked fine and simply had no
+# effect. Adding a field here is now the only edit a new API field needs, and
+# test_parity.py fails if an entrypoint stops forwarding one.
+WIRE_FIELDS = (
+    "mode", "prompt", "messages", "system", "assistant_name", "temperature",
+    "max_tokens", "output_shape", "attachments", "metadata",
+    "previous_intent", "pending_action", "continue",
+)
+
+# Mirrors the server's own cap (GenerateRequest.system) and @aivana/sdk's
+# client-side check, so an over-long prompt fails the same way in both SDKs
+# instead of costing a round trip to learn it.
+MAX_SYSTEM_CHARS = 8000
+
+
+def _normalize_attachments(attachments) -> Optional[list]:
+    """Accept `mimeType` or `mime_type`, emit the wire's snake_case.
+
+    @aivana/sdk accepts both spellings, so a team using the two SDKs against one
+    backend can move an attachment payload between them unchanged.
+    """
+    if not attachments:
+        return None
+    out = []
+    for a in attachments:
+        if not isinstance(a, dict):
+            raise InvalidRequestError("attachment must be a dict with mime_type and data",
+                                      code="invalid_request")
+        out.append({"mime_type": a.get("mime_type") or a.get("mimeType"),
+                    "data": a.get("data")})
+    return out
+
+
+def _body(
+    prompt: Optional[str] = None,
     *,
     mode: str = "aivana_mmi",
+    messages: Optional[list[dict]] = None,
+    system: Optional[str] = None,
+    assistant_name: Optional[str] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
-    stream: bool = False,
+    output_shape: Optional[str] = None,
+    attachments: Optional[list[dict]] = None,
     metadata: Optional[dict] = None,
-    timeout: float = 120.0,
     previous_intent: Optional[str] = None,
     pending_action: Optional[str] = None,
-) -> GenerateResponse | Iterator[StreamChunk]:
-    """Sync generate. Returns GenerateResponse, or an iterator of StreamChunk if stream=True.
-
-    Multi-turn without `Chat`: pass `previous_intent` (from `resp.intent.name`)
-    and `pending_action` (from `resp.pending_action`) on each follow-up call.
-    The server uses them to resolve bare yes/no replies after an offer like
-    "Want me to apply these fixes?" to the correct next intent.
-    """
-    if stream:
-        return _sync_stream(prompt, mode, temperature, metadata, timeout,
-                            previous_intent=previous_intent, pending_action=pending_action,
-                            max_tokens=max_tokens)
-
-    with httpx.Client(timeout=timeout, base_url=api_base) as client:
-        resp = client.post(
-            "/v1/generate",
-            headers=_headers(),
-            json=_body(prompt, mode, temperature, metadata,
-                       previous_intent=previous_intent, pending_action=pending_action,
-                       max_tokens=max_tokens),
+    continue_: Optional[bool] = None,
+) -> dict[str, Any]:
+    """Build the request body. The single place any field reaches the wire."""
+    if system is not None and str(system).strip() and len(str(system)) > MAX_SYSTEM_CHARS:
+        raise InvalidRequestError(
+            f"system prompt is {len(system)} chars; the maximum is {MAX_SYSTEM_CHARS}. "
+            "Keep it to the persona, format and constraints that actually change "
+            "the answer.",
+            code="invalid_request",
         )
+
+    body: dict[str, Any] = {"mode": mode}
+    if prompt:
+        body["prompt"] = prompt
+    if messages:
+        body["messages"] = messages
+    if system is not None and str(system).strip():
+        body["system"] = str(system)
+    if assistant_name:
+        body["assistant_name"] = assistant_name
+    if output_shape:
+        body["output_shape"] = output_shape
+    if previous_intent:
+        body["previous_intent"] = previous_intent
+    if pending_action:
+        body["pending_action"] = pending_action
+    if metadata:
+        body["metadata"] = metadata
+    normalized = _normalize_attachments(attachments)
+    if normalized:
+        body["attachments"] = normalized
+    if continue_ is not None:
+        body["continue"] = continue_
+    # Generation params are OMITTED unless the caller set one. A client-side
+    # default would make "I didn't choose" indistinguishable from "I chose this",
+    # permanently shadowing the engine's per-intent temperature and its
+    # depth-derived token budget.
+    if temperature is not None:
+        body["temperature"] = temperature
+    if max_tokens is not None:
+        body["max_tokens"] = max_tokens
+    return body
+
+
+# Keyword options shared by every entrypoint. Documented once; see _body above
+# for the full list and the wire names they map to.
+_OPTS = """
+    system: your own system prompt — persona, tone, format, domain focus. ADDITIVE:
+        Aivana keeps its own instructions and they win on conflict, so this shapes an
+        answer but cannot change what Aivana discloses about how it was produced.
+        Max 8000 chars, checked here before the request is sent.
+    assistant_name: the name the assistant presents as ("Acme Copilot"). Renaming is
+        all it does — which underlying models answered stays undisclosable.
+    temperature / max_tokens: omit to let the engine decide. `max_tokens` is a
+        ceiling: it can lower the engine's budget, never raise it.
+    output_shape: auto|text|recommendation|summary|tradeoffs|decision|extract.
+    attachments: [{"mime_type": "image/png", "data": "<base64 or data: URL>"}] for
+        THIS turn only; they are not replayed on later turns.
+    messages / previous_intent / pending_action / continue_: multi-turn context.
+    metadata: free-form dict echoed into your usage records.
+"""
+
+
+def generate(
+    prompt: Optional[str] = None,
+    *,
+    stream: bool = False,
+    timeout: float = 240.0,
+    **options: Any,
+) -> "GenerateResponse | Iterator[StreamChunk]":
+    """Sync generate. Returns GenerateResponse, or an Iterator[StreamChunk] if stream=True.
+
+    Options (all optional):
+    """ + _OPTS + """
+    Multi-turn without `Chat`: pass `previous_intent` (from `resp.intent.name`) and
+    `pending_action` (from `resp.pending_action`) on each follow-up call.
+    """
+    body = _body(prompt, **options)
+    if stream:
+        return _sync_stream(body, timeout)
+    with httpx.Client(timeout=timeout, base_url=api_base) as client:
+        resp = client.post("/v1/generate", headers=_headers(), json=body)
         _check(resp)
         return GenerateResponse(**resp.json())
+
+
+def _sync_stream(body: dict, timeout: float) -> Iterator[StreamChunk]:
+    with httpx.Client(timeout=timeout, base_url=api_base) as client:
+        with client.stream("POST", "/v1/generate:stream",
+                           headers=_headers(), json=body) as resp:
+            _check(resp)
+            for chunk in _iter_sse(resp.iter_lines()):
+                yield chunk
+
+
+async def generate_async(
+    prompt: Optional[str] = None,
+    *,
+    timeout: float = 240.0,
+    **options: Any,
+) -> GenerateResponse:
+    """Async generate. Same options as `generate`.
+    """ + _OPTS
+    async with httpx.AsyncClient(timeout=timeout, base_url=api_base) as client:
+        resp = await client.post("/v1/generate", headers=_headers(),
+                                 json=_body(prompt, **options))
+        _check(resp)
+        return GenerateResponse(**resp.json())
+
+
+async def generate_stream(
+    prompt: Optional[str] = None,
+    *,
+    timeout: float = 240.0,
+    **options: Any,
+) -> AsyncIterator[StreamChunk]:
+    """Async streaming generate. Same options as `generate`.
+    """ + _OPTS
+    body = _body(prompt, **options)
+    async with httpx.AsyncClient(timeout=timeout, base_url=api_base) as client:
+        async with client.stream("POST", "/v1/generate:stream",
+                                 headers=_headers(), json=body) as resp:
+            _check(resp)
+            async for chunk in _aiter_sse(resp.aiter_lines()):
+                yield chunk
 
 
 class Chat:
     """Stateful multi-turn helper.
 
-    Usage:
-        chat = aivana.Chat()
+    Every option `generate` accepts may be passed here and is applied to every
+    turn — a `system` prompt or `assistant_name` set once holds for the whole
+    conversation, matching `aivana.chat({...})` in @aivana/sdk.
+
+        chat = aivana.Chat(system="You are a tax specialist. Answer in bullets.")
         print(chat.send("Should we use SQL or NoSQL?").answer)
         print(chat.send("Yes, give me an example").answer)
     """
 
-    def __init__(self, *, mode: str = "aivana_mmi", temperature: Optional[float] = None,
-                 max_tokens: Optional[int] = None, timeout: float = 120.0):
-        self.mode = mode
-        self.temperature = temperature
-        self.max_tokens = max_tokens
+    def __init__(self, *, timeout: float = 240.0, **options: Any):
         self.timeout = timeout
+        self.options = options
         self.messages: list[dict] = []
         self._last_intent: Optional[str] = None
         self._pending_action: Optional[str] = None
 
-    def send(self, content: str, *, metadata: Optional[dict] = None) -> GenerateResponse:
+    def send(self, content: str, *, metadata: Optional[dict] = None,
+             **overrides: Any) -> GenerateResponse:
         self.messages.append({"role": "user", "content": content})
+        opts = {**self.options, **overrides}
+        opts.pop("messages", None)          # this turn's history is authoritative
+        if metadata is not None:
+            opts["metadata"] = metadata
         body = _body(
-            prompt=None,
-            mode=self.mode,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            metadata=metadata,
+            None,
             messages=self.messages,
             previous_intent=self._last_intent,
             pending_action=self._pending_action,
+            **opts,
         )
         with httpx.Client(timeout=self.timeout, base_url=api_base) as client:
             resp = client.post("/v1/generate", headers=_headers(), json=body)
@@ -154,67 +298,6 @@ class Chat:
         self.messages = []
         self._last_intent = None
         self._pending_action = None
-
-
-def _sync_stream(
-    prompt: str, mode: str, temperature: Optional[float], metadata: Optional[dict], timeout: float,
-    *,
-    previous_intent: Optional[str] = None,
-    pending_action: Optional[str] = None,
-    max_tokens: Optional[int] = None,
-) -> Iterator[StreamChunk]:
-    body = _body(prompt, mode, temperature, metadata,
-                 previous_intent=previous_intent, pending_action=pending_action,
-                       max_tokens=max_tokens)
-    with httpx.Client(timeout=timeout, base_url=api_base) as client:
-        with client.stream("POST", "/v1/generate:stream", headers=_headers(), json=body) as resp:
-            _check(resp)
-            for chunk in _iter_sse(resp.iter_lines()):
-                yield chunk
-
-
-async def generate_async(
-    prompt: str,
-    *,
-    mode: str = "aivana_mmi",
-    temperature: Optional[float] = None,
-    max_tokens: Optional[int] = None,
-    metadata: Optional[dict] = None,
-    timeout: float = 120.0,
-    previous_intent: Optional[str] = None,
-    pending_action: Optional[str] = None,
-) -> GenerateResponse:
-    async with httpx.AsyncClient(timeout=timeout, base_url=api_base) as client:
-        resp = await client.post(
-            "/v1/generate",
-            headers=_headers(),
-            json=_body(prompt, mode, temperature, metadata,
-                       previous_intent=previous_intent, pending_action=pending_action,
-                       max_tokens=max_tokens),
-        )
-        _check(resp)
-        return GenerateResponse(**resp.json())
-
-
-async def generate_stream(
-    prompt: str,
-    *,
-    mode: str = "aivana_mmi",
-    temperature: Optional[float] = None,
-    max_tokens: Optional[int] = None,
-    metadata: Optional[dict] = None,
-    timeout: float = 120.0,
-    previous_intent: Optional[str] = None,
-    pending_action: Optional[str] = None,
-) -> AsyncIterator[StreamChunk]:
-    body = _body(prompt, mode, temperature, metadata,
-                 previous_intent=previous_intent, pending_action=pending_action,
-                       max_tokens=max_tokens)
-    async with httpx.AsyncClient(timeout=timeout, base_url=api_base) as client:
-        async with client.stream("POST", "/v1/generate:stream", headers=_headers(), json=body) as resp:
-            _check(resp)
-            async for chunk in _aiter_sse(resp.aiter_lines()):
-                yield chunk
 
 
 def _parse_sse(buffered: list[str]) -> Optional[StreamChunk]:
