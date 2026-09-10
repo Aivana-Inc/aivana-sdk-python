@@ -194,6 +194,7 @@ that.
 | `assistant_name` | str | the assistant does not name itself |
 | `web_search` | bool | Aivana decides from the question |
 | `temperature` | 0.0–2.0 | chosen per request |
+| `top_p` | 0.0–1.0 | each model's own default |
 | `max_tokens` | int | sized to the question |
 | `output_shape` | str | `"auto"` |
 | `attachments` | list | none |
@@ -236,6 +237,25 @@ while answering, so a long persona costs more tokens than its length suggests. T
 `InvalidRequestError` before the request is sent.
 
 ## Web search
+
+### Randomness: `temperature` or `top_p`, not both
+
+Both control how varied an answer is; they just do it differently. `temperature`
+reshapes the whole probability distribution, `top_p` narrows the pool to the most
+likely tokens whose probabilities add up to your value.
+
+```python
+aivana.generate("Extract the invoice number", top_p=0.1)    # tight, predictable
+aivana.generate("Ten campaign taglines", temperature=1.2)    # varied
+```
+
+Set **one** of the two. Sending both is accepted, but you are then steering the
+same thing with two dials and the result is harder to reason about — and for some
+questions Aivana cannot pass both through, in which case `top_p` wins and the
+temperature is dropped for that call.
+
+`top_p=0.0` is legal and is the most deterministic setting there is. Omitting the
+option is **not** the same as `1.0`: omitted leaves the choice to Aivana.
 
 `web_search` has **three** states, and the third is the useful one:
 

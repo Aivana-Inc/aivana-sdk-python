@@ -55,7 +55,7 @@ def _check(resp: httpx.Response) -> None:
 WIRE_FIELDS = (
     "mode", "prompt", "messages", "system", "assistant_name", "temperature",
     "max_tokens", "output_shape", "attachments", "metadata",
-    "previous_intent", "pending_action", "continue", "web_search",
+    "previous_intent", "pending_action", "continue", "web_search", "top_p",
 )
 
 # Mirrors the server's own cap (GenerateRequest.system) and @aivana/sdk's
@@ -98,6 +98,7 @@ def _body(
     pending_action: Optional[str] = None,
     continue_: Optional[bool] = None,
     web_search: Optional[bool] = None,
+    top_p: Optional[float] = None,
 ) -> dict[str, Any]:
     """Build the request body. The single place any field reaches the wire."""
     if system is not None and str(system).strip() and len(str(system)) > MAX_SYSTEM_CHARS:
@@ -144,6 +145,12 @@ def _body(
     # falsy; this one must not be, or every opt-out is silently discarded.
     if web_search is not None:
         body["web_search"] = bool(web_search)
+    # `is not None` for the same reason as web_search above, though for a
+    # different value: top_p=0.0 is legal and means "always take the single most
+    # likely token". A truthiness check would drop the most deterministic setting
+    # the parameter has.
+    if top_p is not None:
+        body["top_p"] = float(top_p)
     return body
 
 
@@ -158,6 +165,12 @@ _OPTS = """
         all it does — which underlying models answered stays undisclosable.
     temperature / max_tokens: omit to let the engine decide. `max_tokens` is a
         ceiling: it can lower the engine's budget, never raise it.
+    top_p: nucleus sampling, 0.0-1.0 — consider only the most likely tokens whose
+        probabilities add up to this. It controls randomness the same way
+        `temperature` does, by a different mechanism, so set ONE of the two rather
+        than both. Omitting it is not the same as 1.0: omitted leaves every model
+        on its own default. Where a model cannot accept both, Aivana honours
+        `top_p` and drops the temperature for that call.
     web_search: whether to ground this answer in a live web search. THREE states:
         True always searches, False never searches, and OMITTING it lets Aivana
         judge whether the question needs fresh data. Omitted is not the same as

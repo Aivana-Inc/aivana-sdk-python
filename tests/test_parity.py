@@ -40,6 +40,7 @@ SAMPLE = {
     "pending_action": "code_fix",
     "continue_": True,
     "web_search": True,
+    "top_p": 0.4,
 }
 
 
@@ -162,6 +163,18 @@ def test_web_search_false_reaches_the_wire():
     the search the caller just turned off.
     """
     assert _body("hi", web_search=False)["web_search"] is False
+
+
+def test_top_p_zero_reaches_the_wire():
+    """0.0 is a legal, meaningful value — the greediest possible sampling — so
+    the falsy check that would be right for every other field is wrong here."""
+    assert _body("hi", top_p=0.0)["top_p"] == 0.0
+
+
+def test_top_p_omitted_stays_omitted():
+    """Omitted is not 1.0: it leaves each model on its own default."""
+    assert "top_p" not in _body("hi")
+    assert "top_p" not in _body("hi", top_p=None)
 
 
 def test_web_search_omitted_stays_omitted():
