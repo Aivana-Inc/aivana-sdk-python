@@ -39,6 +39,7 @@ SAMPLE = {
     "previous_intent": "tech_comparison",
     "pending_action": "code_fix",
     "continue_": True,
+    "web_search": True,
 }
 
 
@@ -61,7 +62,10 @@ def test_every_entrypoint_accepts_every_option():
 
 
 def test_chat_applies_options_to_every_turn():
-    chat = aivana.Chat(system="You are Acme.", assistant_name="Acme Copilot")
+    # web_search=False is included deliberately: it is the one sticky option a
+    # falsy-check in the Chat path would drop on every turn.
+    chat = aivana.Chat(system="You are Acme.", assistant_name="Acme Copilot",
+                       web_search=False)
     sent = {}
 
     class _Resp:
@@ -90,12 +94,49 @@ def test_chat_applies_options_to_every_turn():
         chat.send("first")
         assert sent.get("system") == "You are Acme.", sent
         assert sent.get("assistant_name") == "Acme Copilot", sent
+        assert sent.get("web_search") is False, sent
         sent.clear()
         chat.send("second")
         assert sent.get("system") == "You are Acme.", "options lost on turn 2"
+        assert sent.get("web_search") is False, "web_search lost on turn 2"
         assert sent["messages"][-1]["content"] == "second"
     finally:
         c.httpx.Client = orig
+
+
+def test_api_base_defaults_to_production():
+    """Matches @aivana/sdk. A localhost default made the first call after
+    `pip install aivana` a connection-refused unless the caller already knew to
+    call set_api_base()."""
+    import importlib
+
+    import aivana.client as c
+    assert importlib.reload(c).api_base == "https://developers.aivana.ai"
+
+
+def test_module_level_config_reaches_the_client():
+    """`aivana.api_key = "..."` must actually authenticate.
+
+    It is documented as the primary way to configure the SDK, and it used to bind
+    a new attribute on the package while client.py kept reading its own — so the
+    request went out with no X-API-Key header and failed with a 401 the caller had
+    no way to explain. A silent auth failure is the worst shape this bug can take,
+    so both directions are pinned here.
+    """
+    import aivana.client as c
+    before_key, before_base = c.api_key, c.api_base
+    try:
+        aivana.api_key = "aiv_live_test"
+        assert c.api_key == "aiv_live_test", "assignment did not reach the client"
+        assert c._headers().get("X-API-Key") == "aiv_live_test", "no auth header sent"
+
+        aivana.set_api_key("aiv_live_other")
+        assert aivana.api_key == "aiv_live_other", "read returned a stale copy"
+
+        aivana.api_base = "https://example.test/"
+        assert c.api_base == "https://example.test", "trailing slash not normalised"
+    finally:
+        c.api_key, c.api_base = before_key, before_base
 
 
 def test_attachment_accepts_both_spellings():
@@ -110,6 +151,23 @@ def test_system_cap_is_client_side():
         assert e.code == "invalid_request"
     else:
         raise AssertionError("over-long system prompt was not rejected")
+
+
+def test_web_search_false_reaches_the_wire():
+    """The one option where a falsy value is meaningful.
+
+    Every other field here is dropped when falsy. `web_search=False` is an
+    explicit "never search this request" and must survive: collapsing it into an
+    absent field would hand the decision back to Aivana and quietly re-enable
+    the search the caller just turned off.
+    """
+    assert _body("hi", web_search=False)["web_search"] is False
+
+
+def test_web_search_omitted_stays_omitted():
+    """An absent field is how "you decide" is expressed. It is not False."""
+    assert "web_search" not in _body("hi")
+    assert "web_search" not in _body("hi", web_search=None)
 
 
 def test_generation_params_omitted_when_unset():

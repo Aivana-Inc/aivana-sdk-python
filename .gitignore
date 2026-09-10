@@ -9,3 +9,6 @@ venv/
 .env.*
 .pytest_cache/
 .DS_Store
+
+# publish.sh restores this after a TestPyPI version bump; only ever a stray.
+.pyproject.toml.bak

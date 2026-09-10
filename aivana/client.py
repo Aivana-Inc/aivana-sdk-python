@@ -11,7 +11,12 @@ from aivana.exceptions import AivanaError, InvalidRequestError, from_error_paylo
 
 # Module-level config (Stripe-style)
 api_key: Optional[str] = None
-api_base: str = "http://localhost:8088"
+# Production, and the same default as @aivana/sdk's DEFAULT_BASE. It used to point
+# at the local engine port, which meant the first call after `pip install aivana`
+# was a connection-refused to localhost unless the caller happened to know about
+# set_api_base(). Local development is the case that should have to say so, not
+# the default.
+api_base: str = "https://developers.aivana.ai"
 
 
 def set_api_key(key: str) -> None:
@@ -29,38 +34,6 @@ def _headers() -> dict[str, str]:
     if api_key:
         h["X-API-Key"] = api_key
     return h
-
-
-def _body(
-    prompt: Optional[str],
-    mode: str,
-    temperature: Optional[float],
-    metadata: Optional[dict],
-    messages: Optional[list[dict]] = None,
-    previous_intent: Optional[str] = None,
-    pending_action: Optional[str] = None,
-    max_tokens: Optional[int] = None,
-) -> dict:
-    body: dict[str, Any] = {"mode": mode}
-    if prompt:
-        body["prompt"] = prompt
-    if messages:
-        body["messages"] = messages
-    if previous_intent:
-        body["previous_intent"] = previous_intent
-    if pending_action:
-        body["pending_action"] = pending_action
-    if metadata:
-        body["metadata"] = metadata
-    # Generation params are OMITTED unless the caller set one. A client-side
-    # default would make "I didn't choose" indistinguishable from "I chose this",
-    # permanently shadowing the engine's per-intent temperature and its
-    # depth-derived token budget.
-    if temperature is not None:
-        body["temperature"] = temperature
-    if max_tokens is not None:
-        body["max_tokens"] = max_tokens
-    return body
 
 
 def _check(resp: httpx.Response) -> None:
@@ -82,7 +55,7 @@ def _check(resp: httpx.Response) -> None:
 WIRE_FIELDS = (
     "mode", "prompt", "messages", "system", "assistant_name", "temperature",
     "max_tokens", "output_shape", "attachments", "metadata",
-    "previous_intent", "pending_action", "continue",
+    "previous_intent", "pending_action", "continue", "web_search",
 )
 
 # Mirrors the server's own cap (GenerateRequest.system) and @aivana/sdk's
@@ -124,6 +97,7 @@ def _body(
     previous_intent: Optional[str] = None,
     pending_action: Optional[str] = None,
     continue_: Optional[bool] = None,
+    web_search: Optional[bool] = None,
 ) -> dict[str, Any]:
     """Build the request body. The single place any field reaches the wire."""
     if system is not None and str(system).strip() and len(str(system)) > MAX_SYSTEM_CHARS:
@@ -164,6 +138,12 @@ def _body(
         body["temperature"] = temperature
     if max_tokens is not None:
         body["max_tokens"] = max_tokens
+    # Web search is THREE-state, so `False` has to reach the wire: it means
+    # "never search this request", which is a different instruction from an
+    # absent field ("you decide"). Every other option here is skipped when
+    # falsy; this one must not be, or every opt-out is silently discarded.
+    if web_search is not None:
+        body["web_search"] = bool(web_search)
     return body
 
 
@@ -178,6 +158,11 @@ _OPTS = """
         all it does — which underlying models answered stays undisclosable.
     temperature / max_tokens: omit to let the engine decide. `max_tokens` is a
         ceiling: it can lower the engine's budget, never raise it.
+    web_search: whether to ground this answer in a live web search. THREE states:
+        True always searches, False never searches, and OMITTING it lets Aivana
+        judge whether the question needs fresh data. Omitted is not the same as
+        False. On an API key the default is off, so a search only happens when you
+        ask for one.
     output_shape: auto|text|recommendation|summary|tradeoffs|decision|extract.
     attachments: [{"mime_type": "image/png", "data": "<base64 or data: URL>"}] for
         THIS turn only; they are not replayed on later turns.

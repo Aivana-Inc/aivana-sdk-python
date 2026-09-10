@@ -1,15 +1,12 @@
 """Response envelopes — kept identical to the server's own and to @aivana/sdk.
 
-This file was the SDK's most serious defect. It still declared `mode`,
-`output_format`, `model`, `provider`, `object` and `stages` — fields the API
-REMOVED when it tightened its IP boundary, because `stages` was publishing
-`route_label` ("single_model" / "panel_2") and `model`/`provider` named the real
-vendor. Four of those were REQUIRED here, so after that server change every
-`aivana.generate()` call raised a pydantic ValidationError before the caller ever
-saw their answer: the SDK was broken end to end, not merely out of date.
+Every field the API returns is declared here and nothing else. The envelope
+deliberately carries no description of HOW an answer was produced, and fields of
+that kind must not be added back: an earlier version of this file declared
+several the API no longer returns, which made every `aivana.generate()` call
+raise a pydantic ValidationError before the caller ever saw their answer.
 
-Anything describing HOW an answer was produced is deliberately absent and must
-not be added back. `models_used` carries the Aivana-branded id only.
+`models_used` carries the Aivana-branded id only.
 """
 from __future__ import annotations
 
