@@ -41,6 +41,7 @@ SAMPLE = {
     "continue_": True,
     "web_search": True,
     "top_p": 0.4,
+    "stop_sequences": ["###"],
 }
 
 
@@ -163,6 +164,12 @@ def test_web_search_false_reaches_the_wire():
     the search the caller just turned off.
     """
     assert _body("hi", web_search=False)["web_search"] is False
+
+
+def test_stop_sequences_are_forwarded_and_omitted_when_absent():
+    assert _body("hi", stop_sequences=["###"])["stop_sequences"] == ["###"]
+    assert "stop_sequences" not in _body("hi")
+    assert "stop_sequences" not in _body("hi", stop_sequences=[])
 
 
 def test_top_p_zero_reaches_the_wire():

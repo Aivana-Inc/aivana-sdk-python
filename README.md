@@ -195,6 +195,7 @@ that.
 | `web_search` | bool | Aivana decides from the question |
 | `temperature` | 0.0–2.0 | chosen per request |
 | `top_p` | 0.0–1.0 | each model's own default |
+| `stop_sequences` | list[str] | none — the answer ends naturally |
 | `max_tokens` | int | sized to the question |
 | `output_shape` | str | `"auto"` |
 | `attachments` | list | none |
@@ -256,6 +257,20 @@ temperature is dropped for that call.
 
 `top_p=0.0` is legal and is the most deterministic setting there is. Omitting the
 option is **not** the same as `1.0`: omitted leaves the choice to Aivana.
+
+### Stop sequences
+
+Up to four strings. The answer ends where the first one appears, and the string
+itself is not returned.
+
+```python
+aivana.generate("Answer, then stop.", stop_sequences=["###", "\n\nUser:"])
+```
+
+Useful when you are parsing the answer and know its end marker. Two things to
+know: it shapes the output you receive, so it behaves the same on every question
+— and the text past the marker is still generated and still billed, so this is not
+a way to spend less.
 
 `web_search` has **three** states, and the third is the useful one:
 

@@ -56,6 +56,7 @@ WIRE_FIELDS = (
     "mode", "prompt", "messages", "system", "assistant_name", "temperature",
     "max_tokens", "output_shape", "attachments", "metadata",
     "previous_intent", "pending_action", "continue", "web_search", "top_p",
+    "stop_sequences",
 )
 
 # Mirrors the server's own cap (GenerateRequest.system) and @aivana/sdk's
@@ -99,6 +100,7 @@ def _body(
     continue_: Optional[bool] = None,
     web_search: Optional[bool] = None,
     top_p: Optional[float] = None,
+    stop_sequences: Optional[list] = None,
 ) -> dict[str, Any]:
     """Build the request body. The single place any field reaches the wire."""
     if system is not None and str(system).strip() and len(str(system)) > MAX_SYSTEM_CHARS:
@@ -151,6 +153,8 @@ def _body(
     # the parameter has.
     if top_p is not None:
         body["top_p"] = float(top_p)
+    if stop_sequences:
+        body["stop_sequences"] = [str(x) for x in stop_sequences]
     return body
 
 
@@ -176,6 +180,11 @@ _OPTS = """
         judge whether the question needs fresh data. Omitted is not the same as
         False. On an API key the default is off, so a search only happens when you
         ask for one.
+    stop_sequences: up to 4 strings; the answer ends where the first one appears
+        and the string itself is not returned. Applied to the answer you receive,
+        so it behaves the same on every question — but the text past the marker is
+        still generated and still billed, so this shapes output, it does not save
+        tokens.
     output_shape: auto|text|recommendation|summary|tradeoffs|decision|extract.
     attachments: [{"mime_type": "image/png", "data": "<base64 or data: URL>"}] for
         THIS turn only; they are not replayed on later turns.
