@@ -42,7 +42,30 @@ SAMPLE = {
     "web_search": True,
     "top_p": 0.4,
     "stop_sequences": ["###"],
+    "intelligence_trace": True,
 }
+
+
+def test_intelligence_trace_is_only_sent_when_set():
+    """Omitted by default: the trace is a choice the caller makes, not one we make."""
+    assert "intelligence_trace" not in _body("hello")
+    assert _body("hello", intelligence_trace=True)["intelligence_trace"] is True
+    # An explicit False is forwarded rather than dropped — unlike the falsy
+    # values above, it is a real answer to the question and not an absence.
+    assert _body("hello", intelligence_trace=False)["intelligence_trace"] is False
+
+
+def test_response_exposes_trace_and_defaults_to_none():
+    from aivana.envelopes import GenerateResponse
+
+    base = {
+        "id": "gen_1",
+        "answer": "hi",
+        "intent": {"name": "direct_chat", "confidence": 0.0},
+    }
+    assert GenerateResponse(**base).trace is None
+    traced = GenerateResponse(**base, trace={"status": "completed", "steps": []})
+    assert traced.trace["status"] == "completed"
 
 
 def test_body_carries_every_wire_field():

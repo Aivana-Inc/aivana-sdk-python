@@ -51,6 +51,12 @@ class GenerateResponse(BaseModel):
     # If the assistant ended this turn with a yes/no offer, the intent a bare
     # "yes" should resolve to next. Echo it back as `pending_action`.
     pending_action: Optional[str] = None
+    # The Intelligence Trace, when `intelligence_trace=True` was requested —
+    # otherwise None. An ordered list of the steps Aivana went through with
+    # timings, a summary of the route it chose, and why it chose it. Typed as a
+    # plain dict on purpose: the step vocabulary is the server's to evolve, and a
+    # modelled shape here would reject a server that added a step.
+    trace: Optional[dict[str, Any]] = None
 
 
 class StreamChunk(BaseModel):

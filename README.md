@@ -196,6 +196,7 @@ that.
 | `temperature` | 0.0–2.0 | chosen per request |
 | `top_p` | 0.0–1.0 | each model's own default |
 | `stop_sequences` | list[str] | none — the answer ends naturally |
+| `intelligence_trace` | bool | off — no trace is returned |
 | `max_tokens` | int | sized to the question |
 | `output_shape` | str | `"auto"` |
 | `attachments` | list | none |
@@ -271,6 +272,58 @@ Useful when you are parsing the answer and know its end marker. Two things to
 know: it shapes the output you receive, so it behaves the same on every question
 — and the text past the marker is still generated and still billed, so this is not
 a way to spend less.
+
+### Intelligence Trace
+
+Aivana decides how much intelligence each request needs. `intelligence_trace`
+asks it to show its working.
+
+```python
+resp = aivana.generate(
+    "Compare Postgres and DynamoDB for a write-heavy API.",
+    intelligence_trace=True,
+)
+
+print(resp.trace["summary"]["route"])       # "2-model verification"
+for step in resp.trace["steps"]:
+    print(step["at_ms"], step["title"], "—", step["detail"])
+```
+
+```
+1204 Understanding Request — Multi-part request with several considerations
+1240 Fresh Data Check — Existing knowledge is sufficient; no live lookup needed
+1255 Selecting Intelligence Path — A 2-model verification path would provide the most reliable answer
+3980 Establishing Lead Perspective — Primary analysis generated
+6310 Independent Perspectives — A second perspective independently analyzed the request
+6402 Evaluating Perspectives — Perspectives agreed; the answer was confirmed rather than changed
+8120 Final Synthesis — Findings combined into a single coherent answer
+8155 Completed — Response delivered
+```
+
+The trace changes with the route. A simple question shows four steps and says
+additional perspectives were unlikely to improve the answer; a question needing
+current information shows the live-source lookup and the validation against what
+came back. `trace["summary"]` carries the route, how many perspectives were
+engaged, and whether fresh data was used; `trace["why_this_route"]` explains the
+choice in plain sentences.
+
+With `stream=True` the same information arrives as `trace` chunks while the
+answer is being produced, so you can render the run as it happens:
+
+```python
+for chunk in aivana.generate("...", stream=True, intelligence_trace=True):
+    if chunk.event == "delta":
+        print(chunk.delta, end="")
+    elif chunk.event == "trace" and "step" in chunk.data:
+        step = chunk.data["step"]
+        print(f"\n[{step['status']}] {step['title']}")
+```
+
+Each step arrives twice — once as it starts, once as it finishes — followed by a
+single consolidated trace at the end.
+
+The trace describes decisions and outcomes. It does not name the models that
+answered, and it never exposes scoring, thresholds or prompts.
 
 `web_search` has **three** states, and the third is the useful one:
 

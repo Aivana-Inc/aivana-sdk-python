@@ -56,7 +56,7 @@ WIRE_FIELDS = (
     "mode", "prompt", "messages", "system", "assistant_name", "temperature",
     "max_tokens", "output_shape", "attachments", "metadata",
     "previous_intent", "pending_action", "continue", "web_search", "top_p",
-    "stop_sequences",
+    "stop_sequences", "intelligence_trace",
 )
 
 # Mirrors the server's own cap (GenerateRequest.system) and @aivana/sdk's
@@ -101,6 +101,7 @@ def _body(
     web_search: Optional[bool] = None,
     top_p: Optional[float] = None,
     stop_sequences: Optional[list] = None,
+    intelligence_trace: Optional[bool] = None,
 ) -> dict[str, Any]:
     """Build the request body. The single place any field reaches the wire."""
     if system is not None and str(system).strip() and len(str(system)) > MAX_SYSTEM_CHARS:
@@ -155,6 +156,11 @@ def _body(
         body["top_p"] = float(top_p)
     if stop_sequences:
         body["stop_sequences"] = [str(x) for x in stop_sequences]
+    # Only sent when asked for. An explicit False is still sent: the server treats
+    # it the same as omitting, but echoing the caller's own choice back is
+    # cheaper to reason about than silently collapsing two different requests.
+    if intelligence_trace is not None:
+        body["intelligence_trace"] = bool(intelligence_trace)
     return body
 
 
@@ -180,6 +186,13 @@ _OPTS = """
         judge whether the question needs fresh data. Omitted is not the same as
         False. On an API key the default is off, so a search only happens when you
         ask for one.
+    intelligence_trace: ask Aivana to explain how it handled this request. Off
+        unless you set it. `resp.trace` then carries the ordered steps it went
+        through (with timings), a summary of the route it chose, and why — for
+        example whether a second independent perspective was engaged, and whether
+        live sources were needed. On `stream=True` the same information arrives as
+        `trace` events while the answer is being produced. It describes decisions
+        and outcomes, never which underlying models answered.
     stop_sequences: up to 4 strings; the answer ends where the first one appears
         and the string itself is not returned. Applied to the answer you receive,
         so it behaves the same on every question — but the text past the marker is
