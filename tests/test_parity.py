@@ -43,7 +43,16 @@ SAMPLE = {
     "top_p": 0.4,
     "stop_sequences": ["###"],
     "intelligence_trace": True,
+    "effort": "low",
 }
+
+
+def test_effort_is_only_sent_when_chosen():
+    """Omitted by default, so an untouched client sends the pre-effort body."""
+    assert "effort" not in _body("hello")
+    assert _body("hello", effort="low")["effort"] == "low"
+    # Normalized client-side so "High" and "high" are one request, not two.
+    assert _body("hello", effort="  High ")["effort"] == "high"
 
 
 def test_intelligence_trace_is_only_sent_when_set():

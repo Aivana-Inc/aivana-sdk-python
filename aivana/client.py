@@ -56,7 +56,7 @@ WIRE_FIELDS = (
     "mode", "prompt", "messages", "system", "assistant_name", "temperature",
     "max_tokens", "output_shape", "attachments", "metadata",
     "previous_intent", "pending_action", "continue", "web_search", "top_p",
-    "stop_sequences", "intelligence_trace",
+    "stop_sequences", "intelligence_trace", "effort",
 )
 
 # Mirrors the server's own cap (GenerateRequest.system) and @aivana/sdk's
@@ -102,6 +102,7 @@ def _body(
     top_p: Optional[float] = None,
     stop_sequences: Optional[list] = None,
     intelligence_trace: Optional[bool] = None,
+    effort: Optional[str] = None,
 ) -> dict[str, Any]:
     """Build the request body. The single place any field reaches the wire."""
     if system is not None and str(system).strip() and len(str(system)) > MAX_SYSTEM_CHARS:
@@ -161,6 +162,12 @@ def _body(
     # cheaper to reason about than silently collapsing two different requests.
     if intelligence_trace is not None:
         body["intelligence_trace"] = bool(intelligence_trace)
+    # Sent only when the caller picked a band. "auto" is the server default and
+    # means "you decide", so sending it changes nothing — but it is forwarded
+    # rather than dropped, because a caller who types it explicitly should see
+    # it echoed in their own request rather than silently rewritten.
+    if effort:
+        body["effort"] = str(effort).strip().lower()
     return body
 
 
@@ -198,6 +205,12 @@ _OPTS = """
         so it behaves the same on every question — but the text past the marker is
         still generated and still billed, so this shapes output, it does not save
         tokens.
+    effort: auto|low|medium|high — how much intelligence to spend on this request.
+        `auto` (the default) lets Aivana judge from the question itself. `low` takes
+        the fastest, cheapest path; `medium` compares two independent perspectives;
+        `high` engages three or more for hard or high-stakes questions. It BOUNDS
+        that judgement rather than replacing it, and it is not a length control —
+        use `max_tokens` for that. Cost scales roughly with the band.
     output_shape: auto|text|recommendation|summary|tradeoffs|decision|extract.
     attachments: [{"mime_type": "image/png", "data": "<base64 or data: URL>"}] for
         THIS turn only; they are not replayed on later turns.

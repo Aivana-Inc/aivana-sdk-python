@@ -193,6 +193,7 @@ that.
 | `system` | str | no persona — Aivana's own voice |
 | `assistant_name` | str | the assistant does not name itself |
 | `web_search` | bool | Aivana decides from the question |
+| `effort` | `"auto"`/`"low"`/`"medium"`/`"high"` | `"auto"` — Aivana decides |
 | `temperature` | 0.0–2.0 | chosen per request |
 | `top_p` | 0.0–1.0 | each model's own default |
 | `stop_sequences` | list[str] | none — the answer ends naturally |
@@ -201,6 +202,39 @@ that.
 | `output_shape` | str | `"auto"` |
 | `attachments` | list | none |
 | `metadata` | dict | none |
+
+## Choose how much intelligence to spend
+
+`effort` is the one option that is about Aivana rather than about a model.
+`temperature`, `top_p` and `max_tokens` shape how a model writes; `effort`
+decides how much work goes into the answer in the first place.
+
+```python
+# A lookup you want back fast and cheap.
+aivana.generate("What's the default port for Postgres?", effort="low")
+
+# A decision you are going to act on.
+aivana.generate(
+    "Should we move billing off Stripe before the Series A?",
+    effort="high",
+)
+```
+
+| band | what happens | when to reach for it |
+|---|---|---|
+| `"auto"` | Aivana judges from the question | the default — leave it alone unless you know better than the question does |
+| `"low"` | the fastest, cheapest path: one independent perspective | lookups, classification, formatting, anything with one right answer |
+| `"medium"` | two independent perspectives, compared and reconciled | contested or subjective questions with a bounded blast radius |
+| `"high"` | three or more perspectives | hard, high-stakes, open-ended questions |
+
+Two things worth knowing:
+
+- **It is a bound, not an instruction.** Aivana still reads the question and
+  still decides how to answer it — `effort` only constrains how far it may go.
+- **It is not a length control.** `"low"` does not mean "short"; use
+  `max_tokens` for that. Cost scales roughly with the band, so `"high"` on a
+  trivial question spends more for no gain — which is exactly the judgement
+  `"auto"` exists to make.
 
 ## Give the assistant a persona
 
