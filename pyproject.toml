@@ -24,6 +24,11 @@ dependencies = [
     "pydantic>=2",
 ]
 
+# The `aivana` command-line tool (aivana/cli.py). It ships in the same package as
+# the SDK and adds no dependencies; `python -m aivana` runs the same program.
+[project.scripts]
+aivana = "aivana.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/Aivana-Inc/aivana-sdk-python"
 Repository = "https://github.com/Aivana-Inc/aivana-sdk-python"

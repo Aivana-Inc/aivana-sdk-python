@@ -18,7 +18,7 @@ Configuration is module-level, Stripe-style:
 ```python
 import aivana
 
-aivana.api_key = "aiv_live_xxx"
+aivana.api_key = "ai_live_xxx"
 
 res = aivana.generate("Should we enter the EU market in 2027?")
 print(res.answer)
@@ -34,6 +34,71 @@ deployment:
 ```python
 aivana.set_api_base("http://localhost:8088")   # local engine
 ```
+
+## Command line
+
+The package also installs an `aivana` command. To use it without adding the SDK
+to a project, install it as a standalone tool:
+
+```bash
+pipx install aivana        # or run it without installing: uvx aivana "..."
+export AIVANA_API_KEY=ai_live_xxx
+aivana "Should we enter the EU market in 2027?"
+```
+
+The answer streams to stdout as it is written; progress, the trace and errors go
+to stderr. So `aivana "..." > answer.md` saves just the answer, and the command
+works in pipes. Text piped in is sent ahead of the question:
+
+```bash
+git diff | aivana "Review this change" --effort high
+aivana "Summarise the three biggest risks" < contract.txt
+aivana "What's driving the dip in this chart?" --image chart.png
+aivana "Postgres or DynamoDB for a write-heavy API?" --shape tradeoffs --trace
+aivana "Extract the invoice number and total" --shape extract --json < invoice.txt
+```
+
+Every option maps to one the SDK already has:
+
+| option | SDK equivalent |
+|---|---|
+| `--effort auto\|low\|medium\|high` | `effort` |
+| `--shape SHAPE` | `output_shape` |
+| `--web` / `--no-web` | `web_search=True` / `False`; neither lets Aivana decide |
+| `--system TEXT` | `system` |
+| `--assistant-name NAME` | `assistant_name` |
+| `--max-tokens N` | `max_tokens` |
+| `--temperature T` | `temperature` |
+| `--image PATH` (repeatable) | `attachments` |
+| `--trace` | `intelligence_trace=True`, printed to stderr |
+| `--json` | the whole `GenerateResponse` as JSON, without streaming |
+
+As in the SDK, there is deliberately no option to choose a model or provider.
+`AIVANA_API_BASE` points the command at another deployment, like
+`set_api_base()`; `python -m aivana` runs the same program.
+
+Scripts can branch on the exit code:
+
+| code | meaning |
+|---|---|
+| 0 | success |
+| 1 | the request failed |
+| 2 | bad usage |
+| 3 | authentication problem: no key, or an invalid or expired one |
+| 4 | rate limited: wait, then retry |
+| 5 | out of credits: top up in AI Studio |
+| 6 | temporary failure (network, timeout, upstream): safe to retry |
+| 130 | interrupted |
+
+Two things worth knowing:
+
+- **The key comes from `AIVANA_API_KEY` only.** There is no `--api-key` flag, on
+  purpose: a key typed as an argument is saved in your shell history and is
+  visible to other users in the process list.
+- **Quote the question.** Unquoted words work, but the shell acts on characters
+  such as `?`, `*` and `'` before `aivana` sees them. `aivana ask "..."` is the
+  same as `aivana "..."`, for a question that starts with a word the CLI keeps
+  for future commands (`chat`, `usage`, ...).
 
 ## Streaming
 
