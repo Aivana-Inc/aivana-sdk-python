@@ -1,6 +1,6 @@
 {
   "suite": "aivana-cli",
-  "version": 1,
+  "version": 2,
   "about": "Behaviour every implementation of the `aivana` command must share. See README.md in this directory for the format and how to change it.",
   "defaults": {
     "env": {
@@ -1589,6 +1589,214 @@
         "stdout": "Half an ans\n",
         "stderr_contains": [
           "aivana: note: the connection dropped mid-answer, so the text above is incomplete.\n"
+        ]
+      }
+    },
+    {
+      "name": "control characters in the answer never reach the terminal",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 200,
+        "events": [
+          [
+            "stage",
+            {
+              "loading": "Selecting the right intelligence",
+              "stage": "Selecting the right intelligence"
+            }
+          ],
+          [
+            "delta",
+            {
+              "text": "Safe \u001b]0;title\u0007\u001b[31mred\u001b[0m\r\n"
+            }
+          ],
+          [
+            "delta",
+            {
+              "text": "\t\u009b2Jend\u007f."
+            }
+          ],
+          [
+            "delta",
+            {
+              "text": "\u001b\u0007"
+            }
+          ],
+          [
+            "done",
+            {
+              "finish_reason": "stop",
+              "model": "aivana-mmi",
+              "usage": {
+                "input_tokens": 5,
+                "output_tokens": 7,
+                "credits": 0.0001
+              }
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "exit": 0,
+        "stdout": "Safe ]0;title[31mred[0m\n\t2Jend.\n",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "control characters in a trace step never reach the terminal",
+      "argv": [
+        "hi",
+        "--trace"
+      ],
+      "response": {
+        "status": 200,
+        "events": [
+          [
+            "trace",
+            {
+              "step": {
+                "id": "understanding",
+                "title": "Understanding\u001b[2J Request",
+                "detail": "Multi-part\u0007 request",
+                "status": "ok",
+                "at_ms": 1200
+              }
+            }
+          ],
+          [
+            "delta",
+            {
+              "text": "Hello."
+            }
+          ],
+          [
+            "done",
+            {
+              "finish_reason": "stop",
+              "model": "aivana-mmi",
+              "usage": {
+                "input_tokens": 5,
+                "output_tokens": 7,
+                "credits": 0.0001
+              }
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "exit": 0,
+        "stdout": "Hello.\n",
+        "stderr_contains": [
+          "Understanding[2J Request — Multi-part request"
+        ],
+        "stderr_excludes": [
+          "\u001b",
+          "\u0007"
+        ]
+      }
+    },
+    {
+      "name": "control characters in an error message never reach the terminal",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 200,
+        "events": [
+          [
+            "stage",
+            {
+              "loading": "Selecting the right intelligence",
+              "stage": "Selecting the right intelligence"
+            }
+          ],
+          [
+            "error",
+            {
+              "type": "unknown_failure",
+              "message": "bad\u001b]52;c;cHduZWQ=\u0007 thing"
+            }
+          ],
+          [
+            "done",
+            {
+              "finish_reason": "error",
+              "usage": {}
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "exit": 1,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: bad]52;c;cHduZWQ= thing\n"
+        ],
+        "stderr_excludes": [
+          "\u001b",
+          "\u0007"
+        ]
+      }
+    },
+    {
+      "name": "--json output carries no raw control characters",
+      "argv": [
+        "hi",
+        "--json"
+      ],
+      "response": {
+        "status": 200,
+        "json": {
+          "id": "gen_1",
+          "answer": "a\u001b[31mb\u009bc\u007fd",
+          "intent": {
+            "name": "direct_chat",
+            "confidence": 0.9,
+            "signal": ""
+          },
+          "models_used": [
+            "aivana-mmi"
+          ],
+          "latency_ms": 900,
+          "finish_reason": "stop",
+          "usage": {
+            "input_tokens": 3,
+            "output_tokens": 1,
+            "cached_tokens": 0,
+            "credits": 0.0
+          }
+        }
+      },
+      "expect": {
+        "exit": 0,
+        "stdout_json": {
+          "answer": "a\u001b[31mb\u009bc\u007fd"
+        },
+        "stdout_excludes": [
+          "\u001b",
+          "\u009b",
+          "\u007f"
+        ]
+      }
+    },
+    {
+      "name": "a redirect is reported, never followed",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 307,
+        "json": {}
+      },
+      "expect": {
+        "exit": 1,
+        "stdout": "",
+        "requests": 1,
+        "stderr_contains": [
+          "aivana: error: the API answered with a redirect (HTTP 307), which the SDK does not follow so your API key is only sent to the host you configured."
         ]
       }
     }

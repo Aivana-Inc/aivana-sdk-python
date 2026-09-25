@@ -25,7 +25,9 @@ print(res.answer)
 ```
 
 Your API key is the only required setting. `aivana.api_key = ...` and
-`aivana.set_api_key(...)` are equivalent.
+`aivana.set_api_key(...)` are equivalent. If neither is set, the SDK uses the
+`AIVANA_API_KEY` environment variable, the same one the `aivana` command reads; a
+key set in code always wins.
 
 `api_base` defaults to the hosted API at `https://developers.aivana.ai`, the same
 default as `@aivana/sdk`. Point it elsewhere only to run against your own

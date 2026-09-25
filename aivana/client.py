@@ -1,6 +1,7 @@
 """HTTP client. The SDK has zero knowledge of models/providers/modes."""
 from __future__ import annotations
 import json
+import os
 from typing import Any, AsyncIterator, Iterator, Optional
 
 import httpx
@@ -31,18 +32,51 @@ def set_api_base(url: str) -> None:
 
 def _headers() -> dict[str, str]:
     h = {"Content-Type": "application/json"}
-    if api_key:
-        h["X-API-Key"] = api_key
+    # A key set in code always wins. Without one, fall back to AIVANA_API_KEY, the
+    # variable the `aivana` command reads, so a key exported for the command also
+    # works from code. Read per request, not at import, so an export made after
+    # `import aivana` still counts.
+    key = api_key or os.environ.get("AIVANA_API_KEY", "").strip()
+    if key:
+        h["X-API-Key"] = key
     return h
 
 
 def _check(resp: httpx.Response) -> None:
+    # httpx does not follow redirects unless asked, and this SDK never asks: a
+    # redirect to another host would carry X-API-Key with it. A 3xx is reported
+    # instead, so the key only ever goes to the configured api_base. Same message
+    # and code as @aivana/sdk.
+    if 300 <= resp.status_code < 400:
+        raise AivanaError(
+            f"the API answered with a redirect (HTTP {resp.status_code}), which the SDK "
+            "does not follow so your API key is only sent to the host you configured. "
+            "Set api_base to the API's final URL.",
+            code="redirect",
+        )
     if resp.status_code >= 400:
         try:
             payload = resp.json()
         except Exception:
             payload = {"error": {"message": resp.text or "request failed"}}
         raise from_error_payload(payload, resp.status_code)
+
+
+def _json(resp: httpx.Response) -> Any:
+    """The body of a successful response, as JSON.
+
+    A 200 whose body is not JSON (a proxy's HTML page, a truncated body) raises
+    AivanaError like every other failure, not a bare json.JSONDecodeError that a
+    caller catching the SDK's errors would miss.
+    """
+    try:
+        return resp.json()
+    except ValueError:
+        raise AivanaError(
+            f"the API sent a response that is not valid JSON (HTTP {resp.status_code}).",
+            code="invalid_response",
+        ) from None
+
 
 
 # Every field the wire accepts, in one place. Five entrypoints used to repeat
@@ -238,7 +272,7 @@ def generate(
     with httpx.Client(timeout=timeout, base_url=api_base) as client:
         resp = client.post("/v1/generate", headers=_headers(), json=body)
         _check(resp)
-        return GenerateResponse(**resp.json())
+        return GenerateResponse(**_json(resp))
 
 
 def _sync_stream(body: dict, timeout: float) -> Iterator[StreamChunk]:
@@ -269,7 +303,7 @@ async def generate_async(
         resp = await client.post("/v1/generate", headers=_headers(),
                                  json=_body(prompt, **options))
         _check(resp)
-        return GenerateResponse(**resp.json())
+        return GenerateResponse(**_json(resp))
 
 
 async def generate_stream(
@@ -327,7 +361,7 @@ class Chat:
         with httpx.Client(timeout=self.timeout, base_url=api_base) as client:
             resp = client.post("/v1/generate", headers=_headers(), json=body)
             _check(resp)
-        result = GenerateResponse(**resp.json())
+        result = GenerateResponse(**_json(resp))
         self.messages.append({"role": "assistant", "content": result.answer})
         self._last_intent = result.intent.name if result.intent else None
         # Carry forward only the most recent offer. If this turn didn't make

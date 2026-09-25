@@ -70,6 +70,29 @@ IMAGE_TYPES = {
 # started is always read to the end, however slowly it arrives.
 STDIN_WAIT_S = 3.0
 
+# Text that came from the API (the answer, trace steps, stage labels, error
+# messages) is printed where a terminal will act on control characters: an ESC
+# sequence can retitle the window, recolour or erase what is on screen, plant a
+# disguised link, or on some terminals write to the clipboard. The text being
+# asked about can steer an answer into containing one (`git diff | aivana` on
+# someone else's change), so every C0 and C1 control except tab and newline is
+# dropped before printing. Dropping each ESC on its own also defuses a sequence
+# split across stream chunks: what is left prints as plain text. Same set as
+# terminalSafe() in @aivana/sdk.
+_UNSAFE_CONTROLS = dict.fromkeys(
+    [*range(0x00, 0x09), *range(0x0B, 0x20), *range(0x7F, 0xA0)])
+
+
+def _terminal_safe(text: str) -> str:
+    return str(text).translate(_UNSAFE_CONTROLS)
+
+
+def _json_safe(text: str) -> str:
+    """--json output with DEL and C1 escaped. The JSON encoder already escapes C0
+    controls but leaves these raw; escaped, the output still parses to the same
+    value."""
+    return "".join(f"\\u{ord(c):04x}" if 0x7F <= ord(c) < 0xA0 else c for c in text)
+
 # Words held back for commands that may exist later (`aivana chat`, ...). Today they
 # fail with a pointer to `aivana ask`, so shipping one turns an error into a feature
 # instead of changing what an invocation someone already scripted does.
@@ -346,14 +369,17 @@ def _ask_streaming(question: str, options: dict[str, Any], *,
             if chunk.event == "stage":
                 progress.show(str(chunk.data.get("stage") or ""))
             elif chunk.event == "delta" and chunk.delta:
+                text = _terminal_safe(chunk.delta)
+                if not text:
+                    continue
                 if not answering:
                     answering = True
                     progress.stop()
                     if trace_view is not None:
                         trace_view.answer_started = True
-                out.write(chunk.delta)
+                out.write(text)
                 out.flush()
-                ends_with_newline = chunk.delta.endswith("\n")
+                ends_with_newline = text.endswith("\n")
             elif chunk.event == "trace" and trace_view is not None:
                 trace_view.feed(chunk.data)
             elif chunk.event == "error":
@@ -391,7 +417,7 @@ def _ask_json(question: str, options: dict[str, Any], *, quiet: bool) -> int:
         resp = aivana.generate(question, **options)
     finally:
         progress.stop()
-    sys.stdout.write(resp.model_dump_json(indent=2) + "\n")
+    sys.stdout.write(_json_safe(resp.model_dump_json(indent=2)) + "\n")
     return EXIT_OK
 
 
@@ -464,6 +490,7 @@ class _Progress:
         self._width = 0
 
     def show(self, label: str) -> None:
+        label = _terminal_safe(label)
         if not self._enabled or not label:
             return
         line = f"{label}…"
@@ -487,7 +514,7 @@ class _Progress:
         """Print lines that stay, keeping the status line (if any) below them."""
         label = self._label
         self.clear()
-        self.stream.write(text + "\n")
+        self.stream.write(_terminal_safe(text) + "\n")
         self.stream.flush()
         self.show(label)
 
@@ -601,7 +628,7 @@ def _note(message: str, *hints: str) -> None:
 
 
 def _stderr_lines(first: str, rest: Sequence[str]) -> None:
-    sys.stderr.write("\n".join([first, *(f"  {line}" for line in rest)]) + "\n")
+    sys.stderr.write(_terminal_safe("\n".join([first, *(f"  {line}" for line in rest)])) + "\n")
     sys.stderr.flush()
 
 

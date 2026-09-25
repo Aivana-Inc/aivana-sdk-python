@@ -241,3 +241,18 @@ if __name__ == "__main__":
             print(f"  FAIL  {fn.__name__} — {e}")
     print(f"\n{len(fns) - failed}/{len(fns)} passed")
     sys.exit(1 if failed else 0)
+
+
+def test_aivana_api_key_is_the_fallback_and_a_key_set_in_code_wins(monkeypatch):
+    """The variable the `aivana` command reads also works from code, but only when
+    no key was set there."""
+    import aivana.client as c
+    monkeypatch.setattr(c, "api_key", None)
+    monkeypatch.delenv("AIVANA_API_KEY", raising=False)
+    assert "X-API-Key" not in c._headers()
+
+    monkeypatch.setenv("AIVANA_API_KEY", "  ai_live_from_env  ")
+    assert c._headers()["X-API-Key"] == "ai_live_from_env"
+
+    monkeypatch.setattr(c, "api_key", "ai_live_from_code")
+    assert c._headers()["X-API-Key"] == "ai_live_from_code"
