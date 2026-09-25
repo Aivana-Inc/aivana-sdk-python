@@ -48,7 +48,6 @@ include = ["aivana*"]
 [tool.setuptools.package-data]
 aivana = ["py.typed"]
 
-# Only tests/ is the suite. examples/ holds a live harness that calls the real
-# API, so a bare `pytest` at the repo root used to fail on connection-refused.
+# The suite is tests/, so a bare `pytest` at the repo root runs it and nothing else.
 [tool.pytest.ini_options]
 testpaths = ["tests"]
