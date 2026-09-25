@@ -246,6 +246,13 @@ def _sync_stream(body: dict, timeout: float) -> Iterator[StreamChunk]:
     with httpx.Client(timeout=timeout, base_url=api_base) as client:
         with client.stream("POST", "/v1/generate:stream",
                            headers=_headers(), json=body) as resp:
+            if resp.status_code >= 400:
+                # A streamed response has no body until it is read, and _check
+                # parses the error envelope out of the body. Without this, every
+                # HTTP error on the streaming path — a bad key, a rate limit, an
+                # empty balance — surfaced as httpx.ResponseNotRead instead of the
+                # AuthError / RateLimitError / ... the caller is catching.
+                resp.read()
             _check(resp)
             for chunk in _iter_sse(resp.iter_lines()):
                 yield chunk
@@ -278,6 +285,8 @@ async def generate_stream(
     async with httpx.AsyncClient(timeout=timeout, base_url=api_base) as client:
         async with client.stream("POST", "/v1/generate:stream",
                                  headers=_headers(), json=body) as resp:
+            if resp.status_code >= 400:
+                await resp.aread()          # see _sync_stream
             _check(resp)
             async for chunk in _aiter_sse(resp.aiter_lines()):
                 yield chunk

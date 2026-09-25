@@ -2,7 +2,7 @@
 
 Quickstart:
     import aivana
-    aivana.api_key = "aiv_live_xxx"          # or aivana.set_api_key(...)
+    aivana.api_key = "ai_live_xxx"          # or aivana.set_api_key(...)
     print(aivana.generate("Should we enter the EU market in 2027?").answer)
 
     for chunk in aivana.generate("Explain CAP theorem", stream=True):

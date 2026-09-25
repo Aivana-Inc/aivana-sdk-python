@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    # fix/api-parity is this repository's default branch today.
+    branches: [main, fix/api-parity]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every version pyproject.toml promises.
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Installing the package, not just its dependencies, also installs the
+      # `aivana` command, so the last step exercises the real entry point.
+      - run: pip install . pytest
+
+      # Includes the shared CLI conformance suite (conformance/cli.json), which
+      # the Node CLI in aivana-sdk-node runs too.
+      - run: python -m pytest tests -q
+
+      - name: The installed aivana command runs
+        run: aivana --version

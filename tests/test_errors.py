@@ -74,3 +74,63 @@ def test_forbidden_is_exported_like_the_node_sdk():
     lands on the bare AivanaError and `except ForbiddenError` does not compile."""
     assert "ForbiddenError" in aivana.__all__
     assert issubclass(aivana.ForbiddenError, aivana.AivanaError)
+
+
+def test_streaming_errors_arrive_typed_not_as_response_not_read():
+    """The streaming path must raise the same classes as the non-streaming one.
+
+    A streamed response has no body until it is read, and the error envelope is
+    in the body — so an unread 401 used to escape as httpx.ResponseNotRead, and
+    `except AuthError` around a streaming call caught nothing.
+
+    The bodies here are generators ON PURPOSE. httpx pre-reads a response built
+    from bytes (`json=` / `content=b"..."`), which is exactly what hid this bug:
+    only a body that arrives in pieces, as it does over a real socket, is unread
+    when the SDK sees it.
+    """
+    import asyncio
+    import json
+
+    import httpx
+
+    from aivana import client as c
+
+    body = json.dumps(_envelope("invalid_api_key")).encode()
+    headers = {"content-type": "application/json"}
+
+    def sync_body():
+        yield body
+
+    async def async_body():
+        yield body
+
+    def sync_handler(request):
+        return httpx.Response(401, headers=headers, content=sync_body())
+
+    def async_handler(request):
+        return httpx.Response(401, headers=headers, content=async_body())
+
+    real_client, real_async = c.httpx.Client, c.httpx.AsyncClient
+    c.httpx.Client = lambda **kw: real_client(
+        transport=httpx.MockTransport(sync_handler), **kw)
+    c.httpx.AsyncClient = lambda **kw: real_async(
+        transport=httpx.MockTransport(async_handler), **kw)
+    try:
+        try:
+            list(aivana.generate("hi", stream=True))
+            raise AssertionError("expected AuthError")
+        except aivana.AuthError as err:
+            assert err.code == "invalid_api_key"
+            assert err.request_id == "req_123"
+
+        async def consume():
+            async for _ in aivana.generate_stream("hi"):
+                pass
+
+        try:
+            asyncio.run(consume())
+            raise AssertionError("expected AuthError")
+        except aivana.AuthError as err:
+            assert err.code == "invalid_api_key"
+    finally:
+        c.httpx.Client, c.httpx.AsyncClient = real_client, real_async
