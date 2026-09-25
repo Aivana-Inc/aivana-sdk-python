@@ -94,6 +94,35 @@ def test_binary_piped_input_is_refused(api, run, monkeypatch):
     assert not api.requests
 
 
+REJECTED = {"status": 401, "json": {"error": {
+    "type": "invalid_api_key", "code": "invalid_api_key",
+    "message": "The server said no.", "request_id": "req_123"}}}
+
+
+@pytest.mark.parametrize("case", ["missing key", "rejected key"])
+def test_on_windows_the_key_hints_use_powershell_and_command_prompt_syntax(
+        api, run, monkeypatch, case):
+    """Windows shells have no `export`, so showing it there sends people to a
+    command that fails. The shared suite runs on Linux and pins everything else
+    about these messages; only the platform-specific line is checked here."""
+    if case == "missing key":
+        monkeypatch.delenv("AIVANA_API_KEY")
+    else:
+        api.response = REJECTED
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    code, _, err = run("hi")
+    assert code == cli.EXIT_AUTH
+    assert '    $env:AIVANA_API_KEY = "ai_live_..."   (PowerShell)\n' in err
+    assert "    set AIVANA_API_KEY=ai_live_...        (Command Prompt)\n" in err
+    assert "export" not in err
+
+    monkeypatch.setattr(sys, "platform", "darwin")
+    code, _, err = run("hi")
+    assert code == cli.EXIT_AUTH
+    assert "    export AIVANA_API_KEY=ai_live_...\n" in err
+
+
 def test_ctrl_c_exits_130(api, monkeypatch):
     def interrupted(request):
         raise KeyboardInterrupt

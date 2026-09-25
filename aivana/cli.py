@@ -213,8 +213,7 @@ def _ask(args: argparse.Namespace) -> int:
     key = os.environ.get("AIVANA_API_KEY", "").strip()
     if not key:
         _error("no API key found.",
-               "Create one in AI Studio > API Keys, then run:",
-               "  export AIVANA_API_KEY=ai_live_...")
+               "Create one in AI Studio > API Keys, then run:", *_set_key_lines())
         return EXIT_AUTH
     aivana.set_api_key(key)
     base = os.environ.get("AIVANA_API_BASE", "").strip()
@@ -412,8 +411,7 @@ def _report_api_error(e: AivanaError, *, json_mode: bool) -> int:
     code = EXIT_FAILED
     if isinstance(e, AuthError):
         code = EXIT_AUTH
-        hints += ["Create a new key in AI Studio > API Keys, then run:",
-                  "  export AIVANA_API_KEY=ai_live_..."]
+        hints += ["Create a new key in AI Studio > API Keys, then run:", *_set_key_lines()]
     elif isinstance(e, ForbiddenError):
         if e.code == "host_not_allowed":
             hints.append(f"Answers are only served from the developer API host, and "
@@ -605,6 +603,19 @@ def _note(message: str, *hints: str) -> None:
 def _stderr_lines(first: str, rest: Sequence[str]) -> None:
     sys.stderr.write("\n".join([first, *(f"  {line}" for line in rest)]) + "\n")
     sys.stderr.flush()
+
+
+def _set_key_lines() -> list[str]:
+    """How to set the key, in the syntax of the shell the command most likely ran in.
+
+    Windows has no `export`, and nothing reliably tells PowerShell (the default in
+    Windows Terminal) from Command Prompt, so Windows gets both. Command Prompt's
+    form has no quotes on purpose: `set` would keep them as part of the key.
+    """
+    if sys.platform == "win32":
+        return ['  $env:AIVANA_API_KEY = "ai_live_..."   (PowerShell)',
+                "  set AIVANA_API_KEY=ai_live_...        (Command Prompt)"]
+    return ["  export AIVANA_API_KEY=ai_live_..."]
 
 
 def _isatty(stream: Any) -> bool:
