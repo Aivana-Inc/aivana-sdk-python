@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    # fix/api-parity is this repository's default branch today.
+    # fix/api-parity stays listed until the default branch is renamed to main.
     branches: [main, fix/api-parity]
   pull_request:
 

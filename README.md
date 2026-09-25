@@ -42,7 +42,7 @@ to a project, install it as a standalone tool:
 
 ```bash
 pipx install aivana        # or run it without installing: uvx aivana "..."
-export AIVANA_API_KEY=ai_live_xxx
+export AIVANA_API_KEY=ai_live_xxx  # Windows PowerShell: $env:AIVANA_API_KEY = "ai_live_xxx"
 aivana "Should we enter the EU market in 2027?"
 ```
 

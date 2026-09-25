@@ -137,8 +137,7 @@ def _body(
         body["continue"] = continue_
     # Generation params are OMITTED unless the caller set one. A client-side
     # default would make "I didn't choose" indistinguishable from "I chose this",
-    # permanently shadowing the engine's per-intent temperature and its
-    # depth-derived token budget.
+    # permanently overriding the values Aivana picks for each request.
     if temperature is not None:
         body["temperature"] = temperature
     if max_tokens is not None:

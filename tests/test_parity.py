@@ -224,7 +224,7 @@ def test_web_search_omitted_stays_omitted():
 
 def test_generation_params_omitted_when_unset():
     """Absence must stay distinguishable from a chosen value, or the SDK
-    permanently shadows the engine's per-intent temperature and token budget."""
+    permanently overrides the values Aivana picks for each request."""
     b = _body("hi")
     assert "temperature" not in b and "max_tokens" not in b
 
