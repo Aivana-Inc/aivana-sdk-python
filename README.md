@@ -64,7 +64,7 @@ Every option maps to one the SDK already has:
 |---|---|
 | `--effort auto\|low\|medium\|high` | `effort` |
 | `--shape SHAPE` | `output_shape` |
-| `--web` / `--no-web` | `web_search=True` / `False`; neither lets Aivana decide |
+| `--web` / `--no-web` | `web_search=True` / `False`; neither means no search, the default for API keys |
 | `--system TEXT` | `system` |
 | `--assistant-name NAME` | `assistant_name` |
 | `--max-tokens N` | `max_tokens` |
@@ -262,7 +262,7 @@ that.
 |---|---|---|
 | `system` | str | no persona — Aivana's own voice |
 | `assistant_name` | str | the assistant does not name itself |
-| `web_search` | bool | Aivana decides from the question |
+| `web_search` | bool | no search: the default for API keys |
 | `effort` | `"auto"`/`"low"`/`"medium"`/`"high"` | `"auto"` — Aivana decides |
 | `temperature` | 0.0–2.0 | chosen per request |
 | `top_p` | 0.0–1.0 | each model's own default |
@@ -429,25 +429,24 @@ single consolidated trace at the end.
 The trace describes decisions and outcomes. It does not name the models that
 answered, and it never exposes scoring, thresholds or prompts.
 
-`web_search` has **three** states, and the third is the useful one:
+`web_search` has three states:
 
 ```python
 aivana.generate("What did the EU AI Act change in August?", web_search=True)
 aivana.generate("Explain how quicksort works", web_search=False)
-aivana.generate("Is our pricing still competitive?")          # Aivana decides
+aivana.generate("Is our pricing still competitive?")          # the default: no search
 ```
 
 | value | behaviour |
 |---|---|
 | `True` | always search the web before answering |
 | `False` | never search |
-| *omitted* | Aivana judges whether the question depends on fresh data |
-
-**Omitting it is not the same as `False`.** Omitted means "decide for me"; `False`
-means "definitely don't". They are different requests.
+| *omitted* | the API's default applies; for an API key, that is no search |
 
 On an API key the default is **off** — a search never happens unless you ask for
-one, so it cannot turn up unannounced on your bill. Grounding costs extra tokens
+one, so it cannot turn up unannounced on your bill. Omitting the option and
+passing `False` are still different requests: `False` stays "never search" even
+if the API's default changes, while an omitted option follows it. Grounding costs extra tokens
 and latency, so reach for `True` on current events, prices, releases, competitors
 and anything else that dates; leave it off for reasoning, code, writing and
 explanation, which do not improve with a web lookup.

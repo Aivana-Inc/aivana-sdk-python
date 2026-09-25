@@ -185,7 +185,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--web", dest="web_search", action=argparse.BooleanOptionalAction,
                    default=None,
                    help="--web always searches the web first, --no-web never does. "
-                        "Omit both to let Aivana decide.")
+                        "With neither, there is no search: the default for API keys.")
     p.add_argument("--system", metavar="TEXT",
                    help="your own instructions: persona, tone, format "
                         "(max 8000 characters)")

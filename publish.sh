@@ -2,6 +2,10 @@
 #
 # Build, verify and publish the `aivana` package.
 #
+# Releases normally go out through .github/workflows/publish.yml: publish a
+# GitHub Release tagged with the version and PyPI trusted publishing uploads it,
+# no token involved. This script is the manual fallback.
+#
 #   ./publish.sh            build + check only, uploads nothing (default)
 #   ./publish.sh test       upload to TestPyPI
 #   ./publish.sh live       upload to PyPI  (irreversible — asks first)

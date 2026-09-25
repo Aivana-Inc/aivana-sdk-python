@@ -1,0 +1,82 @@
+name: Publish to PyPI
+
+# A release goes out by publishing a GitHub Release whose tag is the version in
+# pyproject.toml (v0.2.0 or 0.2.0). There is no PyPI token anywhere, not in this
+# repo's secrets and not on anyone's laptop: PyPI trusts this workflow directly
+# ("trusted publishing"), because the project's PyPI settings name this
+# repository, this file and the `pypi` environment below.
+#
+# One-time setup, done on PyPI by the account that will own the project:
+#   Account settings > Publishing > Add a new pending publisher > GitHub
+#     PyPI project name   aivana
+#     Owner               Aivana-Inc
+#     Repository name     aivana-sdk-python
+#     Workflow name       publish.yml
+#     Environment name    pypi
+# The first release then creates the `aivana` project under that account. A
+# pending publisher does not reserve the name (only a first upload does), so
+# release soon after setting it up.
+#
+# When the Aivana organization is approved on PyPI, its owner moves the project
+# in: Your organizations > Manage > Projects > Transfer existing project. The
+# name, the project URL and `pip install aivana` stay exactly the same.
+#
+# publish.sh remains as the manual fallback (token-based, run from a laptop).
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # The environment PyPI's trusted-publisher entry names. To make every
+    # upload wait for a person's approval, add required reviewers to it:
+    # Settings > Environments > pypi.
+    environment: pypi
+    permissions:
+      contents: read
+      # Lets this job prove to PyPI which repository and workflow it is.
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # A broken tag must never reach the index. The full matrix already ran in
+      # CI; this is the last check on the exact commit being released.
+      - name: Test
+        run: |
+          pip install . pytest
+          python -m pytest tests -q
+
+      # Fail loudly if the tag and pyproject.toml disagree, rather than
+      # publishing a version nobody asked for.
+      - name: Check the version matches the release tag
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")"
+          if [ "$tag" != "$version" ]; then
+            echo "release tag ($tag) != pyproject.toml version ($version)" >&2
+            exit 1
+          fi
+
+      - name: Build and check the distributions
+        run: |
+          pip install build twine
+          python -m build
+          python -m twine check --strict dist/*
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Safe to re-run: files already on PyPI are skipped instead of failing
+          # the job. PyPI never accepts the same file twice, so without this an
+          # upload interrupted partway could not be finished by a re-run.
+          skip-existing: true

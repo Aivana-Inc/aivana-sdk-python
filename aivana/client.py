@@ -145,7 +145,7 @@ def _body(
         body["max_tokens"] = max_tokens
     # Web search is THREE-state, so `False` has to reach the wire: it means
     # "never search this request", which is a different instruction from an
-    # absent field ("you decide"). Every other option here is skipped when
+    # absent field ("apply the default"). Every other option here is skipped when
     # falsy; this one must not be, or every opt-out is silently discarded.
     if web_search is not None:
         body["web_search"] = bool(web_search)
@@ -188,11 +188,11 @@ _OPTS = """
         than both. Omitting it is not the same as 1.0: omitted leaves every model
         on its own default. Where a model cannot accept both, Aivana honours
         `top_p` and drops the temperature for that call.
-    web_search: whether to ground this answer in a live web search. THREE states:
-        True always searches, False never searches, and OMITTING it lets Aivana
-        judge whether the question needs fresh data. Omitted is not the same as
-        False. On an API key the default is off, so a search only happens when you
-        ask for one.
+    web_search: whether to ground this answer in a live web search. True always
+        searches, False never searches. OMITTING it applies the API's default, and
+        for an API key that default is off, so a search only happens when you ask
+        for one. False still says more than omitting: it stays "never" even if the
+        default changes.
     intelligence_trace: ask Aivana to explain how it handled this request. Off
         unless you set it. `resp.trace` then carries the ordered steps it went
         through (with timings), a summary of the route it chose, and why — for
