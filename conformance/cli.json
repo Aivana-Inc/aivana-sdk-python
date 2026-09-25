@@ -190,6 +190,26 @@
       }
     },
     {
+      "name": "a negative number is a word of the question, not an option",
+      "argv": [
+        "what",
+        "is",
+        "-5",
+        "squared",
+        "--temperature",
+        "-1"
+      ],
+      "expect": {
+        "exit": 0,
+        "request": {
+          "body": {
+            "prompt": "what is -5 squared",
+            "temperature": -1
+          }
+        }
+      }
+    },
+    {
       "name": "piped text goes ahead of the question",
       "argv": [
         "What's causing this?"
@@ -380,7 +400,7 @@
                 "title": "Final Synthesis",
                 "detail": "Findings combined",
                 "status": "ok",
-                "at_ms": 8100
+                "at_ms": 8450
               }
             }
           ],
@@ -408,7 +428,7 @@
                   "title": "Final Synthesis",
                   "detail": "Findings combined",
                   "status": "ok",
-                  "at_ms": 8100
+                  "at_ms": 8450
                 }
               ],
               "summary": {
@@ -441,7 +461,7 @@
         "stderr_contains": [
           "Intelligence Trace\n  ✓ Understanding Request — Multi-part request  1.2s\n",
           "  – Fresh Data Check — Existing knowledge is sufficient  1.3s\n",
-          "\n\n  ✓ Final Synthesis — Findings combined  8.1s\n",
+          "\n\n  ✓ Final Synthesis — Findings combined  8.5s\n",
           "  Route: 2-model verification · 2 perspectives · no live data needed\n",
           "  · A second perspective adds confidence.\n"
         ],

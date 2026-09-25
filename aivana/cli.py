@@ -580,8 +580,9 @@ class _TraceView:
             text += f" — {step['detail']}"
         if isinstance(step.get("at_ms"), (int, float)):
             # Whole tenths, rounded half up, so every implementation prints the same
-            # figure: float formatting rounds a tie such as 1.25 down in Python and
-            # up in JavaScript (the conformance suite pins 1250 ms to "1.3s").
+            # figure. Float formatting can't promise that: 1.25 rounds down in Python
+            # and up in JavaScript, and 8.45 is stored as 8.4499... so both print 8.4.
+            # The conformance suite pins 1250 ms to "1.3s" and 8450 ms to "8.5s".
             tenths = (int(step["at_ms"]) + 50) // 100
             text += f"  {tenths // 10}.{tenths % 10}s"
         return text
