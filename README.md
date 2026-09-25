@@ -77,6 +77,11 @@ As in the SDK, there is deliberately no option to choose a model or provider.
 `AIVANA_API_BASE` points the command at another deployment, like
 `set_api_base()`; `python -m aivana` runs the same program.
 
+The Node CLI (`npm install -g @aivana/cli`) installs a command with the same name,
+and both must behave identically. That is enforced by a shared conformance suite,
+[`conformance/cli.json`](conformance/cli.json), which each implementation runs in
+its own tests.
+
 Scripts can branch on the exit code:
 
 | code | meaning |

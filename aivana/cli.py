@@ -219,8 +219,16 @@ def _ask(args: argparse.Namespace) -> int:
     aivana.set_api_key(key)
     base = os.environ.get("AIVANA_API_BASE", "").strip()
     if base:
+        parts = urlsplit(base)
+        # Without a scheme and host, every request would fail as a network error
+        # that says nothing about the actual mistake.
+        if parts.scheme not in ("http", "https") or not parts.hostname:
+            _error("AIVANA_API_BASE must be a full URL, such as https://developers.aivana.ai")
+            return EXIT_USAGE
         aivana.set_api_base(base)
-        _warn_if_cleartext(base)
+        if parts.scheme == "http" and parts.hostname not in ("localhost", "127.0.0.1", "::1"):
+            _note(f"AIVANA_API_BASE is plain http://, so your API key travels "
+                  f"unencrypted to {parts.hostname}.")
 
     try:
         question = _read_question(args.question)
@@ -571,15 +579,12 @@ class _TraceView:
         if step.get("detail"):
             text += f" — {step['detail']}"
         if isinstance(step.get("at_ms"), (int, float)):
-            text += f"  {step['at_ms'] / 1000:.1f}s"
+            # Whole tenths, rounded half up, so every implementation prints the same
+            # figure: float formatting rounds a tie such as 1.25 down in Python and
+            # up in JavaScript (the conformance suite pins 1250 ms to "1.3s").
+            tenths = (int(step["at_ms"]) + 50) // 100
+            text += f"  {tenths // 10}.{tenths % 10}s"
         return text
-
-
-def _warn_if_cleartext(base: str) -> None:
-    parts = urlsplit(base)
-    if parts.scheme == "http" and parts.hostname not in ("localhost", "127.0.0.1", "::1"):
-        _note(f"AIVANA_API_BASE is plain http://, so your API key travels "
-              f"unencrypted to {parts.hostname}.")
 
 
 def _finish_line(out: TextIO, ends_with_newline: bool) -> None:

@@ -1,0 +1,1576 @@
+{
+  "suite": "aivana-cli",
+  "version": 1,
+  "about": "Behaviour every implementation of the `aivana` command must share. See README.md in this directory for the format and how to change it.",
+  "defaults": {
+    "env": {
+      "AIVANA_API_KEY": "ai_live_conformance_not_real",
+      "AIVANA_API_BASE": null
+    },
+    "stdin": null,
+    "response": {
+      "status": 200,
+      "events": [
+        [
+          "stage",
+          {
+            "loading": "Selecting the right intelligence",
+            "stage": "Selecting the right intelligence"
+          }
+        ],
+        [
+          "stage",
+          {
+            "loading": "Reviewing multiple perspectives",
+            "stage": "Reviewing multiple perspectives"
+          }
+        ],
+        [
+          "stage",
+          {
+            "loading": "Resolving disagreements",
+            "stage": "Resolving disagreements"
+          }
+        ],
+        [
+          "stage",
+          {
+            "loading": "Preparing the synthesized answer",
+            "stage": "Preparing the synthesized answer"
+          }
+        ],
+        [
+          "delta",
+          {
+            "text": "Hello"
+          }
+        ],
+        [
+          "delta",
+          {
+            "text": " world."
+          }
+        ],
+        [
+          "done",
+          {
+            "finish_reason": "stop",
+            "model": "aivana-mmi",
+            "usage": {
+              "input_tokens": 5,
+              "output_tokens": 7,
+              "credits": 0.0001
+            }
+          }
+        ]
+      ]
+    }
+  },
+  "scenarios": [
+    {
+      "name": "the answer streams to stdout and nothing else",
+      "argv": [
+        "Say hello"
+      ],
+      "expect": {
+        "exit": 0,
+        "stdout": "Hello world.\n",
+        "stderr": "",
+        "requests": 1,
+        "request": {
+          "url": "https://developers.aivana.ai/v1/generate:stream",
+          "headers": {
+            "x-api-key": "ai_live_conformance_not_real"
+          }
+        }
+      }
+    },
+    {
+      "name": "every option reaches the wire",
+      "argv": [
+        "Compare",
+        "Postgres",
+        "and",
+        "DynamoDB",
+        "--effort",
+        "high",
+        "--shape",
+        "tradeoffs",
+        "--web",
+        "--max-tokens",
+        "300",
+        "--temperature",
+        "0.2",
+        "--system",
+        "Answer in bullets.",
+        "--assistant-name",
+        "Acme Copilot"
+      ],
+      "expect": {
+        "exit": 0,
+        "request": {
+          "body": {
+            "mode": "aivana_mmi",
+            "prompt": "Compare Postgres and DynamoDB",
+            "effort": "high",
+            "output_shape": "tradeoffs",
+            "web_search": true,
+            "max_tokens": 300,
+            "temperature": 0.2,
+            "system": "Answer in bullets.",
+            "assistant_name": "Acme Copilot",
+            "metadata": {
+              "request_source": "{request_source}"
+            }
+          },
+          "body_keys": [
+            "assistant_name",
+            "effort",
+            "max_tokens",
+            "metadata",
+            "mode",
+            "output_shape",
+            "prompt",
+            "system",
+            "temperature",
+            "web_search"
+          ]
+        }
+      }
+    },
+    {
+      "name": "options left unset are left to Aivana",
+      "argv": [
+        "hi"
+      ],
+      "expect": {
+        "exit": 0,
+        "request": {
+          "body_keys": [
+            "metadata",
+            "mode",
+            "prompt"
+          ]
+        }
+      }
+    },
+    {
+      "name": "--no-web reaches the wire as false",
+      "argv": [
+        "hi",
+        "--no-web"
+      ],
+      "expect": {
+        "exit": 0,
+        "request": {
+          "body": {
+            "web_search": false
+          }
+        }
+      }
+    },
+    {
+      "name": "options may sit among the words of the question",
+      "argv": [
+        "why",
+        "is",
+        "--effort",
+        "low",
+        "this",
+        "slow"
+      ],
+      "expect": {
+        "exit": 0,
+        "request": {
+          "body": {
+            "prompt": "why is this slow",
+            "effort": "low"
+          }
+        }
+      }
+    },
+    {
+      "name": "piped text goes ahead of the question",
+      "argv": [
+        "What's causing this?"
+      ],
+      "stdin": "KeyError: 'id'\n",
+      "expect": {
+        "exit": 0,
+        "request": {
+          "body": {
+            "prompt": "KeyError: 'id'\n\nWhat's causing this?"
+          }
+        }
+      }
+    },
+    {
+      "name": "piped text alone is the question",
+      "argv": [],
+      "stdin": "Summarize: the sky is blue.",
+      "expect": {
+        "exit": 0,
+        "request": {
+          "body": {
+            "prompt": "Summarize: the sky is blue."
+          }
+        }
+      }
+    },
+    {
+      "name": "an image is sent as base64 with its type",
+      "argv": [
+        "What's in this?",
+        "--image",
+        "{tmp}/chart.png"
+      ],
+      "files": {
+        "chart.png": "iVBORyBub3QgcmVhbGx5"
+      },
+      "expect": {
+        "exit": 0,
+        "request": {
+          "body": {
+            "attachments": [
+              {
+                "mime_type": "image/png",
+                "data": "iVBORyBub3QgcmVhbGx5"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "--json waits for and prints the whole response",
+      "argv": [
+        "What is 6 x 7?",
+        "--json"
+      ],
+      "response": {
+        "status": 200,
+        "json": {
+          "id": "gen_1",
+          "answer": "42",
+          "intent": {
+            "name": "direct_chat",
+            "confidence": 0.9,
+            "signal": ""
+          },
+          "models_used": [
+            "aivana-mmi"
+          ],
+          "latency_ms": 900,
+          "finish_reason": "stop",
+          "usage": {
+            "input_tokens": 3,
+            "output_tokens": 1,
+            "cached_tokens": 0,
+            "credits": 0.0
+          }
+        }
+      },
+      "expect": {
+        "exit": 0,
+        "stdout_json": {
+          "id": "gen_1",
+          "answer": "42"
+        },
+        "request": {
+          "url": "https://developers.aivana.ai/v1/generate"
+        }
+      }
+    },
+    {
+      "name": "the trace goes to stderr and waits for the answer to finish",
+      "argv": [
+        "hi",
+        "--trace"
+      ],
+      "response": {
+        "status": 200,
+        "events": [
+          [
+            "trace",
+            {
+              "step": {
+                "id": "understanding",
+                "title": "Understanding Request",
+                "detail": "Multi-part request",
+                "status": "running",
+                "at_ms": null
+              }
+            }
+          ],
+          [
+            "trace",
+            {
+              "step": {
+                "id": "understanding",
+                "title": "Understanding Request",
+                "detail": "Multi-part request",
+                "status": "ok",
+                "at_ms": 1200
+              }
+            }
+          ],
+          [
+            "trace",
+            {
+              "step": {
+                "id": "freshness",
+                "title": "Fresh Data Check",
+                "detail": "Existing knowledge is sufficient",
+                "status": "skipped",
+                "at_ms": 1250
+              }
+            }
+          ],
+          [
+            "stage",
+            {
+              "loading": "Selecting the right intelligence",
+              "stage": "Selecting the right intelligence"
+            }
+          ],
+          [
+            "stage",
+            {
+              "loading": "Reviewing multiple perspectives",
+              "stage": "Reviewing multiple perspectives"
+            }
+          ],
+          [
+            "stage",
+            {
+              "loading": "Resolving disagreements",
+              "stage": "Resolving disagreements"
+            }
+          ],
+          [
+            "stage",
+            {
+              "loading": "Preparing the synthesized answer",
+              "stage": "Preparing the synthesized answer"
+            }
+          ],
+          [
+            "delta",
+            {
+              "text": "The answer."
+            }
+          ],
+          [
+            "trace",
+            {
+              "step": {
+                "id": "synthesis",
+                "title": "Final Synthesis",
+                "detail": "Findings combined",
+                "status": "running",
+                "at_ms": null
+              }
+            }
+          ],
+          [
+            "trace",
+            {
+              "step": {
+                "id": "synthesis",
+                "title": "Final Synthesis",
+                "detail": "Findings combined",
+                "status": "ok",
+                "at_ms": 8100
+              }
+            }
+          ],
+          [
+            "trace",
+            {
+              "status": "completed",
+              "steps": [
+                {
+                  "id": "understanding",
+                  "title": "Understanding Request",
+                  "detail": "Multi-part request",
+                  "status": "ok",
+                  "at_ms": 1200
+                },
+                {
+                  "id": "freshness",
+                  "title": "Fresh Data Check",
+                  "detail": "Existing knowledge is sufficient",
+                  "status": "skipped",
+                  "at_ms": 1250
+                },
+                {
+                  "id": "synthesis",
+                  "title": "Final Synthesis",
+                  "detail": "Findings combined",
+                  "status": "ok",
+                  "at_ms": 8100
+                }
+              ],
+              "summary": {
+                "route": "2-model verification",
+                "perspectives": 2,
+                "fresh_data": "not_required"
+              },
+              "why_this_route": [
+                "A second perspective adds confidence."
+              ]
+            }
+          ],
+          [
+            "done",
+            {
+              "finish_reason": "stop",
+              "usage": {}
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "exit": 0,
+        "stdout": "The answer.\n",
+        "request": {
+          "body": {
+            "intelligence_trace": true
+          }
+        },
+        "stderr_contains": [
+          "Intelligence Trace\n  ✓ Understanding Request — Multi-part request  1.2s\n",
+          "  – Fresh Data Check — Existing knowledge is sufficient  1.3s\n",
+          "\n\n  ✓ Final Synthesis — Findings combined  8.1s\n",
+          "  Route: 2-model verification · 2 perspectives · no live data needed\n",
+          "  · A second perspective adds confidence.\n"
+        ],
+        "stderr_counts": {
+          "Understanding Request": 1,
+          "Final Synthesis": 1,
+          "Intelligence Trace": 1
+        }
+      }
+    },
+    {
+      "name": "a cut-off answer says so",
+      "argv": [
+        "hi",
+        "--max-tokens",
+        "5"
+      ],
+      "response": {
+        "status": 200,
+        "events": [
+          [
+            "stage",
+            {
+              "loading": "Selecting the right intelligence",
+              "stage": "Selecting the right intelligence"
+            }
+          ],
+          [
+            "stage",
+            {
+              "loading": "Reviewing multiple perspectives",
+              "stage": "Reviewing multiple perspectives"
+            }
+          ],
+          [
+            "stage",
+            {
+              "loading": "Resolving disagreements",
+              "stage": "Resolving disagreements"
+            }
+          ],
+          [
+            "stage",
+            {
+              "loading": "Preparing the synthesized answer",
+              "stage": "Preparing the synthesized answer"
+            }
+          ],
+          [
+            "delta",
+            {
+              "text": "Partial"
+            }
+          ],
+          [
+            "done",
+            {
+              "finish_reason": "length",
+              "model": "aivana-mmi",
+              "usage": {
+                "input_tokens": 5,
+                "output_tokens": 7,
+                "credits": 0.0001
+              }
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "exit": 0,
+        "stdout": "Partial\n",
+        "stderr_contains": [
+          "aivana: note: the answer was cut off at the length limit. Raise --max-tokens to allow a longer one.\n"
+        ]
+      }
+    },
+    {
+      "name": "there is no --model option",
+      "argv": [
+        "hi",
+        "--model",
+        "x"
+      ],
+      "expect": {
+        "exit": 2,
+        "requests": 0,
+        "stderr_contains": [
+          "aivana: error:",
+          "--model"
+        ]
+      }
+    },
+    {
+      "name": "there is no --provider option",
+      "argv": [
+        "hi",
+        "--provider",
+        "x"
+      ],
+      "expect": {
+        "exit": 2,
+        "requests": 0,
+        "stderr_contains": [
+          "aivana: error:",
+          "--provider"
+        ]
+      }
+    },
+    {
+      "name": "there is no --mode option",
+      "argv": [
+        "hi",
+        "--mode",
+        "x"
+      ],
+      "expect": {
+        "exit": 2,
+        "requests": 0,
+        "stderr_contains": [
+          "aivana: error:",
+          "--mode"
+        ]
+      }
+    },
+    {
+      "name": "there is no --panel option",
+      "argv": [
+        "hi",
+        "--panel",
+        "x"
+      ],
+      "expect": {
+        "exit": 2,
+        "requests": 0,
+        "stderr_contains": [
+          "aivana: error:",
+          "--panel"
+        ]
+      }
+    },
+    {
+      "name": "a missing key fails before any request",
+      "argv": [
+        "hi"
+      ],
+      "env": {
+        "AIVANA_API_KEY": null
+      },
+      "expect": {
+        "exit": 3,
+        "requests": 0,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: no API key found.\n",
+          "  Create one in AI Studio > API Keys, then run:\n"
+        ]
+      }
+    },
+    {
+      "name": "the key never reaches the terminal",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 401,
+        "json": {
+          "error": {
+            "type": "invalid_api_key",
+            "code": "invalid_api_key",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 3,
+        "stdout": "",
+        "stderr_excludes": [
+          "ai_live_conformance_not_real"
+        ]
+      }
+    },
+    {
+      "name": "plain http to a remote host warns",
+      "argv": [
+        "hi"
+      ],
+      "env": {
+        "AIVANA_API_BASE": "http://staging.example.com"
+      },
+      "expect": {
+        "exit": 0,
+        "request": {
+          "url": "http://staging.example.com/v1/generate:stream"
+        },
+        "stderr_contains": [
+          "aivana: note: AIVANA_API_BASE is plain http://, so your API key travels unencrypted to staging.example.com.\n"
+        ]
+      }
+    },
+    {
+      "name": "plain http to localhost is ordinary local development",
+      "argv": [
+        "hi"
+      ],
+      "env": {
+        "AIVANA_API_BASE": "http://localhost:8088"
+      },
+      "expect": {
+        "exit": 0,
+        "stderr": "",
+        "request": {
+          "url": "http://localhost:8088/v1/generate:stream"
+        }
+      }
+    },
+    {
+      "name": "an API base that is not a URL is refused locally",
+      "argv": [
+        "hi"
+      ],
+      "env": {
+        "AIVANA_API_BASE": "developers.aivana.ai"
+      },
+      "expect": {
+        "exit": 2,
+        "requests": 0,
+        "stderr_contains": [
+          "aivana: error: AIVANA_API_BASE must be a full URL, such as https://developers.aivana.ai\n"
+        ]
+      }
+    },
+    {
+      "name": "abbreviated options are refused",
+      "argv": [
+        "hi",
+        "--temp",
+        "0.5"
+      ],
+      "expect": {
+        "exit": 2,
+        "requests": 0
+      }
+    },
+    {
+      "name": "a reserved word does not quietly become a question",
+      "argv": [
+        "chat",
+        "about",
+        "databases"
+      ],
+      "expect": {
+        "exit": 2,
+        "requests": 0,
+        "stderr_contains": [
+          "aivana: error: `aivana chat` is reserved for a future command.\n",
+          "aivana ask chat about databases"
+        ]
+      }
+    },
+    {
+      "name": "explicit ask is the way around a reserved word",
+      "argv": [
+        "ask",
+        "chat",
+        "about",
+        "databases"
+      ],
+      "expect": {
+        "exit": 0,
+        "request": {
+          "body": {
+            "prompt": "chat about databases"
+          }
+        }
+      }
+    },
+    {
+      "name": "no question is a usage error",
+      "argv": [
+        "--effort",
+        "low"
+      ],
+      "expect": {
+        "exit": 2,
+        "requests": 0,
+        "stderr_contains": [
+          "aivana: error: no question given.\n"
+        ]
+      }
+    },
+    {
+      "name": "the bare command prints help",
+      "argv": [],
+      "expect": {
+        "exit": 2,
+        "requests": 0,
+        "stdout_contains": [
+          "AIVANA_API_KEY",
+          "exit codes",
+          "--effort",
+          "--no-web",
+          "--trace"
+        ],
+        "stdout_excludes": [
+          "--model",
+          "--provider",
+          "--mode"
+        ]
+      }
+    },
+    {
+      "name": "help prints help",
+      "argv": [
+        "help"
+      ],
+      "expect": {
+        "exit": 0,
+        "requests": 0,
+        "stdout_contains": [
+          "AIVANA_API_KEY",
+          "exit codes"
+        ]
+      }
+    },
+    {
+      "name": "--help prints help",
+      "argv": [
+        "--help"
+      ],
+      "expect": {
+        "exit": 0,
+        "requests": 0,
+        "stdout_contains": [
+          "AIVANA_API_KEY",
+          "exit codes"
+        ]
+      }
+    },
+    {
+      "name": "--version prints the name and version",
+      "argv": [
+        "--version"
+      ],
+      "expect": {
+        "exit": 0,
+        "requests": 0,
+        "stdout_starts_with": "aivana "
+      }
+    },
+    {
+      "name": "an effort that does not exist is refused",
+      "argv": [
+        "hi",
+        "--effort",
+        "extreme"
+      ],
+      "expect": {
+        "exit": 2,
+        "requests": 0,
+        "stderr_contains": [
+          "--effort"
+        ]
+      }
+    },
+    {
+      "name": "a non-number for --max-tokens is refused",
+      "argv": [
+        "hi",
+        "--max-tokens",
+        "lots"
+      ],
+      "expect": {
+        "exit": 2,
+        "requests": 0,
+        "stderr_contains": [
+          "--max-tokens"
+        ]
+      }
+    },
+    {
+      "name": "a non-image attachment is refused locally",
+      "argv": [
+        "Summarize",
+        "--image",
+        "{tmp}/report.pdf"
+      ],
+      "files": {
+        "report.pdf": "JVBERi0xLjc="
+      },
+      "expect": {
+        "exit": 2,
+        "requests": 0,
+        "stderr_contains": [
+          "only PNG, JPEG, WebP and GIF images can be attached",
+          "pdftotext"
+        ]
+      }
+    },
+    {
+      "name": "a missing image file is named",
+      "argv": [
+        "hi",
+        "--image",
+        "{tmp}/nope.png"
+      ],
+      "expect": {
+        "exit": 2,
+        "requests": 0,
+        "stderr_contains": [
+          "nope.png"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 401 invalid_api_key exits 3 (stream)",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 401,
+        "json": {
+          "error": {
+            "type": "invalid_api_key",
+            "code": "invalid_api_key",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 3,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 401 auth exits 3 (stream)",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 401,
+        "json": {
+          "error": {
+            "type": "auth",
+            "code": "auth",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 3,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 403 forbidden exits 3 (stream)",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 403,
+        "json": {
+          "error": {
+            "type": "forbidden",
+            "code": "forbidden",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 3,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 403 host_not_allowed exits 1 (stream)",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 403,
+        "json": {
+          "error": {
+            "type": "host_not_allowed",
+            "code": "host_not_allowed",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 1,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 429 rate_limit_exceeded exits 4 (stream)",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 429,
+        "json": {
+          "error": {
+            "type": "rate_limit_exceeded",
+            "code": "rate_limit_exceeded",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 4,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 402 insufficient_credit exits 5 (stream)",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 402,
+        "json": {
+          "error": {
+            "type": "insufficient_credit",
+            "code": "insufficient_credit",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 5,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 502 upstream exits 6 (stream)",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 502,
+        "json": {
+          "error": {
+            "type": "upstream",
+            "code": "upstream",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 6,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 504 timeout exits 6 (stream)",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 504,
+        "json": {
+          "error": {
+            "type": "timeout",
+            "code": "timeout",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 6,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 503 config_unavailable exits 6 (stream)",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 503,
+        "json": {
+          "error": {
+            "type": "config_unavailable",
+            "code": "config_unavailable",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 6,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 500 internal_error exits 1 (stream)",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 500,
+        "json": {
+          "error": {
+            "type": "internal_error",
+            "code": "internal_error",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 1,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 401 invalid_api_key exits 3 (json)",
+      "argv": [
+        "hi",
+        "--json"
+      ],
+      "response": {
+        "status": 401,
+        "json": {
+          "error": {
+            "type": "invalid_api_key",
+            "code": "invalid_api_key",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 3,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 401 auth exits 3 (json)",
+      "argv": [
+        "hi",
+        "--json"
+      ],
+      "response": {
+        "status": 401,
+        "json": {
+          "error": {
+            "type": "auth",
+            "code": "auth",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 3,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 403 forbidden exits 3 (json)",
+      "argv": [
+        "hi",
+        "--json"
+      ],
+      "response": {
+        "status": 403,
+        "json": {
+          "error": {
+            "type": "forbidden",
+            "code": "forbidden",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 3,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 403 host_not_allowed exits 1 (json)",
+      "argv": [
+        "hi",
+        "--json"
+      ],
+      "response": {
+        "status": 403,
+        "json": {
+          "error": {
+            "type": "host_not_allowed",
+            "code": "host_not_allowed",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 1,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 429 rate_limit_exceeded exits 4 (json)",
+      "argv": [
+        "hi",
+        "--json"
+      ],
+      "response": {
+        "status": 429,
+        "json": {
+          "error": {
+            "type": "rate_limit_exceeded",
+            "code": "rate_limit_exceeded",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 4,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 402 insufficient_credit exits 5 (json)",
+      "argv": [
+        "hi",
+        "--json"
+      ],
+      "response": {
+        "status": 402,
+        "json": {
+          "error": {
+            "type": "insufficient_credit",
+            "code": "insufficient_credit",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 5,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 502 upstream exits 6 (json)",
+      "argv": [
+        "hi",
+        "--json"
+      ],
+      "response": {
+        "status": 502,
+        "json": {
+          "error": {
+            "type": "upstream",
+            "code": "upstream",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 6,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 504 timeout exits 6 (json)",
+      "argv": [
+        "hi",
+        "--json"
+      ],
+      "response": {
+        "status": 504,
+        "json": {
+          "error": {
+            "type": "timeout",
+            "code": "timeout",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 6,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 503 config_unavailable exits 6 (json)",
+      "argv": [
+        "hi",
+        "--json"
+      ],
+      "response": {
+        "status": 503,
+        "json": {
+          "error": {
+            "type": "config_unavailable",
+            "code": "config_unavailable",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 6,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "HTTP 500 internal_error exits 1 (json)",
+      "argv": [
+        "hi",
+        "--json"
+      ],
+      "response": {
+        "status": 500,
+        "json": {
+          "error": {
+            "type": "internal_error",
+            "code": "internal_error",
+            "message": "The server said no.",
+            "request_id": "req_123"
+          }
+        }
+      },
+      "expect": {
+        "exit": 1,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: The server said no. (request id: req_123)\n"
+        ]
+      }
+    },
+    {
+      "name": "a validation error names the flag to fix",
+      "argv": [
+        "hi",
+        "--temperature",
+        "3"
+      ],
+      "response": {
+        "status": 422,
+        "json": {
+          "error": {
+            "type": "invalid_request",
+            "code": "invalid_request",
+            "message": "Request validation failed.",
+            "request_id": "req_123",
+            "details": [
+              {
+                "loc": [
+                  "body",
+                  "temperature"
+                ],
+                "msg": "Input should be less than or equal to 2",
+                "type": "less_than_equal"
+              }
+            ]
+          }
+        }
+      },
+      "expect": {
+        "exit": 1,
+        "stderr_contains": [
+          "  --temperature: Input should be less than or equal to 2\n"
+        ]
+      }
+    },
+    {
+      "name": "an error frame inside the stream is temporary",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 200,
+        "events": [
+          [
+            "stage",
+            {
+              "loading": "Selecting the right intelligence",
+              "stage": "Selecting the right intelligence"
+            }
+          ],
+          [
+            "error",
+            {
+              "type": "upstream_error",
+              "message": "engine error"
+            }
+          ],
+          [
+            "done",
+            {
+              "finish_reason": "error",
+              "usage": {}
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "exit": 6,
+        "stdout": "",
+        "stderr_contains": [
+          "aivana: error: Aivana couldn't complete this answer. It is safe to retry.\n"
+        ],
+        "stderr_excludes": [
+          "engine"
+        ]
+      }
+    },
+    {
+      "name": "an error frame after part of the answer says the text is partial",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 200,
+        "events": [
+          [
+            "stage",
+            {
+              "loading": "Selecting the right intelligence",
+              "stage": "Selecting the right intelligence"
+            }
+          ],
+          [
+            "stage",
+            {
+              "loading": "Reviewing multiple perspectives",
+              "stage": "Reviewing multiple perspectives"
+            }
+          ],
+          [
+            "stage",
+            {
+              "loading": "Resolving disagreements",
+              "stage": "Resolving disagreements"
+            }
+          ],
+          [
+            "stage",
+            {
+              "loading": "Preparing the synthesized answer",
+              "stage": "Preparing the synthesized answer"
+            }
+          ],
+          [
+            "delta",
+            {
+              "text": "Half an ans"
+            }
+          ],
+          [
+            "error",
+            {
+              "type": "upstream",
+              "message": "Upstream provider error."
+            }
+          ],
+          [
+            "done",
+            {
+              "finish_reason": "error",
+              "usage": {}
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "exit": 6,
+        "stdout": "Half an ans\n",
+        "stderr_contains": [
+          "It is safe to retry. The text above is incomplete.\n"
+        ]
+      }
+    },
+    {
+      "name": "an unreachable API is temporary",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "network_error": "connect"
+      },
+      "expect": {
+        "exit": 6,
+        "stderr_contains": [
+          "aivana: error: couldn't reach https://developers.aivana.ai"
+        ]
+      }
+    },
+    {
+      "name": "a timeout is temporary",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "network_error": "timeout"
+      },
+      "expect": {
+        "exit": 6,
+        "stderr_contains": [
+          "aivana: error: timed out waiting for Aivana.\n"
+        ]
+      }
+    },
+    {
+      "name": "a connection dropped mid-answer is flagged",
+      "argv": [
+        "hi"
+      ],
+      "response": {
+        "status": 200,
+        "events": [
+          [
+            "stage",
+            {
+              "loading": "Selecting the right intelligence",
+              "stage": "Selecting the right intelligence"
+            }
+          ],
+          [
+            "stage",
+            {
+              "loading": "Reviewing multiple perspectives",
+              "stage": "Reviewing multiple perspectives"
+            }
+          ],
+          [
+            "stage",
+            {
+              "loading": "Resolving disagreements",
+              "stage": "Resolving disagreements"
+            }
+          ],
+          [
+            "stage",
+            {
+              "loading": "Preparing the synthesized answer",
+              "stage": "Preparing the synthesized answer"
+            }
+          ],
+          [
+            "delta",
+            {
+              "text": "Half an ans"
+            }
+          ]
+        ],
+        "then": "disconnect"
+      },
+      "expect": {
+        "exit": 6,
+        "stdout": "Half an ans\n",
+        "stderr_contains": [
+          "aivana: note: the connection dropped mid-answer, so the text above is incomplete.\n"
+        ]
+      }
+    }
+  ]
+}
