@@ -201,8 +201,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("question", nargs="*", metavar="QUESTION",
                    help="what to ask. Quote it so the shell passes it as one piece.")
     p.add_argument("--effort", choices=EFFORTS,
-                   help="how much intelligence to spend. auto (the default) lets "
-                        "Aivana judge from the question.")
+                   help="a ceiling on how much intelligence Aivana may apply. auto "
+                        "(the default) lets Aivana judge from the question.")
     p.add_argument("--shape", dest="output_shape", choices=SHAPES, metavar="SHAPE",
                    help="answer format: " + ", ".join(SHAPES))
     p.add_argument("--web", dest="web_search", action=argparse.BooleanOptionalAction,

@@ -238,14 +238,14 @@ _OPTS = """
         so it behaves the same on every question — but the text past the marker is
         still generated and still billed, so this shapes output, it does not save
         tokens.
-    effort: auto|low|medium|high — how much intelligence to spend on this request.
-        `auto` (the default) lets Aivana judge from the question itself. `low` takes
-        the fastest, cheapest path; `medium` allows a balanced amount of checking;
-        `high` allows the most thorough treatment, for hard or high-stakes
-        questions. It is a ceiling that BOUNDS that judgement rather than replacing
-        it — no particular number of models or perspectives is guaranteed — and it
-        is not a length control: use `max_tokens` for that. Cost scales roughly
-        with the band.
+    effort: auto|low|medium|high — a ceiling on how much intelligence Aivana may
+        apply to this request. `auto` (the default) lets Aivana judge from the
+        question itself. `low` sets a lower reasoning ceiling and can reduce
+        latency on simpler tasks; `high` allows deeper reasoning for more
+        demanding tasks. It BOUNDS that judgement rather than replacing it — no
+        particular number of models or perspectives is guaranteed — and it is not
+        a length control: use `max_tokens` for that. It is not a price setting
+        either: pricing is by the tokens in the request and response.
     output_shape: auto|text|recommendation|summary|tradeoffs|decision|extract.
     attachments: [{"mime_type": "image/png", "data": "<base64 or data: URL>"}] for
         THIS turn only; they are not replayed on later turns. Up to 5 files, 40 MiB

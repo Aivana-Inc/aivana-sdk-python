@@ -259,14 +259,14 @@ that.
 | `attachments` | list | none |
 | `metadata` | dict | none |
 
-## Choose how much intelligence to spend
+## Set an intelligence ceiling
 
 `effort` is the one option that is about Aivana rather than about a model.
-`temperature` and `max_tokens` shape how an answer is written; `effort`
-decides how much work goes into the answer in the first place.
+`temperature` and `max_tokens` shape how an answer is written; `effort` sets
+how far Aivana may go in reasoning about it.
 
 ```python
-# A lookup you want back fast and cheap.
+# A simple lookup, where a lower ceiling is enough.
 aivana.generate("What's the default port for Postgres?", effort="low")
 
 # A decision you are going to act on.
@@ -279,19 +279,19 @@ aivana.generate(
 | band | what happens | when to reach for it |
 |---|---|---|
 | `"auto"` | Aivana judges from the question | the default — leave it alone unless you know better than the question does |
-| `"low"` | keeps to the fastest, cheapest path | lookups, classification, formatting, anything with one right answer |
-| `"medium"` | allows a balanced amount of checking | contested or subjective questions with a bounded blast radius |
-| `"high"` | allows the most thorough treatment | hard, high-stakes, open-ended questions |
+| `"low"` | a lower reasoning ceiling; can reduce latency on simpler tasks | lookups, classification, formatting, anything with one right answer |
+| `"medium"` | a middle ceiling | contested or subjective questions with a bounded blast radius |
+| `"high"` | allows deeper reasoning for more demanding tasks | hard, high-stakes, open-ended questions |
 
-Two things worth knowing:
+Three things worth knowing:
 
 - **It is a ceiling, not an instruction.** Aivana still reads the question and
   still decides how to answer it — `effort` only constrains how far it may go. It
   does not guarantee a particular number of models or perspectives.
 - **It is not a length control.** `"low"` does not mean "short"; use
-  `max_tokens` for that. Cost scales roughly with the band, so `"high"` on a
-  trivial question spends more for no gain — which is exactly the judgement
-  `"auto"` exists to make.
+  `max_tokens` for that.
+- **It is not a price setting.** Pricing is based on the tokens in your request and
+  response, at the same rates whatever the effort.
 
 ## Give the assistant a persona
 
