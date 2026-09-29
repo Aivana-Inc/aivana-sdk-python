@@ -353,6 +353,24 @@ and latency, so reach for `True` on current events, prices, releases, competitor
 and anything else that dates; leave it off for reasoning, code, writing and
 explanation, which do not improve with a web lookup.
 
+**Billing.** A request that searches the web is charged every token used to answer
+it, not just your prompt and the answer, so it uses more tokens than the same
+question without search. If your balance can't cover a search, the request is
+refused with a 402 that says so.
+
+**When search is off but the question asks for it.** If a question asks for the web
+("search the web for…", a link to read) while search is off, the answer is written
+without searching, and `res.notices` says so:
+
+```python
+res = aivana.generate("Search the web for today's EU AI Act news")
+for notice in res.notices:            # [] when there is nothing to say
+    print(notice.code, notice.message)  # web_search_off ...
+```
+
+Set `web_search=True` to allow the search. `res.notices` is always present, and each
+message is safe to show to your own users.
+
 ## Stop sequences
 
 Up to four strings. The answer ends where the first one appears, and the string

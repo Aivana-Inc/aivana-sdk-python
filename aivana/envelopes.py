@@ -28,6 +28,16 @@ class Usage(BaseModel):
     credits: float = 0.0
 
 
+class Notice(BaseModel):
+    """Something the caller may need to know about an answer: a stable `code` and
+    a `message` that is safe to show as it is. Today's only code is
+    `web_search_off` (the question asked for the web, web search was off, so the
+    answer was written without searching)."""
+
+    code: str
+    message: str
+
+
 class GenerateResponse(BaseModel):
     """Mirrors the server's GenerateResponse field for field.
 
@@ -37,6 +47,8 @@ class GenerateResponse(BaseModel):
     """
 
     id: str
+    # Quote it, with `id`, when you contact support. Also the X-Request-Id header.
+    request_id: str = ""
     answer: str
     intent: Intent
     # Structured output for `output_shape`: the parsed object, or the parse error
@@ -48,6 +60,9 @@ class GenerateResponse(BaseModel):
     usage: Usage = Usage()
     latency_ms: int = 0
     finish_reason: str = "stop"
+    # What the caller should know about the answer. Always present; empty when
+    # there is nothing to say.
+    notices: list[Notice] = []
     # If the assistant ended this turn with a yes/no offer, the intent a bare
     # "yes" should resolve to next. Echo it back as `pending_action`.
     pending_action: Optional[str] = None
