@@ -71,7 +71,7 @@ Every option maps to one the SDK already has:
 | `--assistant-name NAME` | `assistant_name` |
 | `--max-tokens N` | `max_tokens` |
 | `--temperature T` | `temperature` |
-| `--image PATH` (repeatable) | `attachments` |
+| `--image PATH` (repeatable) | `attachments` (images only; the API also takes PDF, Word and CSV) |
 | `--trace` | `intelligence_trace=True`, printed to stderr |
 | `--json` | the whole `GenerateResponse` as JSON, without streaming |
 
@@ -122,7 +122,7 @@ res = await aivana.generate_async("Summarise our Q3 churn drivers.")
 
 ## Conversation history
 
-Aivana is stateless — it never stores your conversations. To ask a follow-up you
+The Generate API is stateless: each request stands alone. To ask a follow-up you
 send the prior turns back with the next question. Two ways to do that.
 
 **Let the SDK track it.** `Chat` keeps the history in memory and appends each turn:
@@ -191,65 +191,50 @@ second = aivana.generate(
 | Characters per message | 200,000 |
 | Characters per prompt | 200,000 |
 
-History is re-sent on every turn and **billed every turn**, because nothing is
-stored server-side. On a long conversation, trim or summarise old turns rather
+History is re-sent on every turn and **billed every turn**, because each request
+stands alone. On a long conversation, trim or summarise old turns rather
 than replaying all 40 — that is the single biggest lever on what a chat costs.
 
 ## Files and documents
 
-**Only images can be attached.** `image/png`, `image/jpeg`, `image/webp`,
-`image/gif` — up to 6 per request, 8 MiB each decoded.
+Attach up to **5 files** to a request, in any mix, **40 MiB** in all:
 
-PDF, Word and Excel files are **not** supported. Sending one raises
-`InvalidRequestError` — the file is rejected, never silently ignored. The message
-is deliberately terse ("request input was rejected"): it confirms the request was
-the problem, but it does not name the offending type, so check the list above
-rather than the error text.
+| kind | `mime_type` | limit |
+|---|---|---|
+| Images | `image/png`, `image/jpeg`, `image/webp`, `image/gif` | 8 MiB each |
+| PDF | `application/pdf` | 10 MiB each; 150 pages in all |
+| Word | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` (`.docx`) | 10 MiB each |
+| CSV | `text/csv` | 10 MiB each |
 
-To ask about a document, extract its text yourself and pass that as the prompt.
-The extraction libraries below are not dependencies of this SDK — install
-whichever you need:
+Word and CSV text together can't exceed 400,000 characters per request. A file that
+can't be read (an encrypted PDF or Word document, an old `.doc` file, a CSV that isn't
+text) is rejected with an error that says why, and which file — never silently ignored.
+Excel workbooks aren't supported; export the sheet as CSV.
 
-**PDF** — `pip install pypdf`
-
-```python
-from pypdf import PdfReader
-text = "\n".join(page.extract_text() or "" for page in PdfReader("report.pdf").pages)
-```
-
-**Word** — `pip install python-docx`
+`data` takes raw base64 or a full data URL. Attachments apply to the **current turn
+only** and are never replayed, so resend the files with a follow-up about them.
 
 ```python
-from docx import Document
-text = "\n".join(p.text for p in Document("contract.docx").paragraphs)
-```
+import base64
 
-**Excel / CSV** — `pip install pandas openpyxl`
+def attach(path, mime_type):
+    return {"mime_type": mime_type,
+            "data": base64.b64encode(open(path, "rb").read()).decode()}
 
-```python
-import pandas as pd
-text = pd.read_excel("q3.xlsx").to_markdown(index=False)
-```
-
-Then send the text as the prompt:
-
-```python
 res = aivana.generate(
-    f"Summarise the three biggest risks in this document.\n\n{text}",
-    system="Quote the passage each risk comes from.",
+    "Summarise the three biggest risks in this contract.",
+    attachments=[attach("contract.pdf", "application/pdf")],
+    system="Quote the page each risk comes from.",
 )
 ```
 
-Two things worth doing:
+Send two or more documents to compare them side by side; answers say which document
+each point comes from. Files are billed as input tokens, and are included in
+`res.usage.input_tokens`: an image counts as up to 1,534 tokens, a PDF as 2,300 a
+page, and a Word or CSV file as one token per 4 characters of its text.
 
-- **Send text, not markup.** Stripped text costs far fewer tokens than raw HTML or
-  XML, and answers are usually better for it.
-- **Watch the size.** A long document can approach the 200,000-character prompt
-  limit. For a large file, extract the relevant sections rather than the whole
-  thing — and remember every character is billed.
-
-A scanned PDF with no text layer extracts to nothing. Render those pages to PNG
-and send them as image attachments instead.
+The `aivana` command is narrower than the API: `--image` attaches images only. To ask
+the command about a document, extract its text first and pipe that in.
 
 ## Options
 
@@ -267,7 +252,6 @@ that.
 | `web_search` | bool | no search: the default for API keys |
 | `effort` | `"auto"`/`"low"`/`"medium"`/`"high"` | `"auto"` — Aivana decides |
 | `temperature` | 0.0–2.0 | chosen per request |
-| `top_p` | 0.0–1.0 | each model's own default |
 | `stop_sequences` | list[str] | none — the answer ends naturally |
 | `intelligence_trace` | bool | off — no trace is returned |
 | `max_tokens` | int | sized to the question |
@@ -278,7 +262,7 @@ that.
 ## Choose how much intelligence to spend
 
 `effort` is the one option that is about Aivana rather than about a model.
-`temperature`, `top_p` and `max_tokens` shape how a model writes; `effort`
+`temperature` and `max_tokens` shape how an answer is written; `effort`
 decides how much work goes into the answer in the first place.
 
 ```python
@@ -295,14 +279,15 @@ aivana.generate(
 | band | what happens | when to reach for it |
 |---|---|---|
 | `"auto"` | Aivana judges from the question | the default — leave it alone unless you know better than the question does |
-| `"low"` | the fastest, cheapest path: one independent perspective | lookups, classification, formatting, anything with one right answer |
-| `"medium"` | two independent perspectives, compared and reconciled | contested or subjective questions with a bounded blast radius |
-| `"high"` | three or more perspectives | hard, high-stakes, open-ended questions |
+| `"low"` | keeps to the fastest, cheapest path | lookups, classification, formatting, anything with one right answer |
+| `"medium"` | allows a balanced amount of checking | contested or subjective questions with a bounded blast radius |
+| `"high"` | allows the most thorough treatment | hard, high-stakes, open-ended questions |
 
 Two things worth knowing:
 
-- **It is a bound, not an instruction.** Aivana still reads the question and
-  still decides how to answer it — `effort` only constrains how far it may go.
+- **It is a ceiling, not an instruction.** Aivana still reads the question and
+  still decides how to answer it — `effort` only constrains how far it may go. It
+  does not guarantee a particular number of models or perspectives.
 - **It is not a length control.** `"low"` does not mean "short"; use
   `max_tokens` for that. Cost scales roughly with the band, so `"high"` on a
   trivial question spends more for no gain — which is exactly the judgement
@@ -346,26 +331,47 @@ while answering, so a long persona costs more tokens than its length suggests. T
 
 ## Web search
 
-### Randomness: `temperature` or `top_p`, not both
-
-Both control how varied an answer is; they just do it differently. `temperature`
-reshapes the whole probability distribution, `top_p` narrows the pool to the most
-likely tokens whose probabilities add up to your value.
+`web_search` has three states:
 
 ```python
-aivana.generate("Extract the invoice number", top_p=0.1)    # tight, predictable
-aivana.generate("Ten campaign taglines", temperature=1.2)    # varied
+aivana.generate("What did the EU AI Act change in August?", web_search=True)
+aivana.generate("Explain how quicksort works", web_search=False)
+aivana.generate("Is our pricing still competitive?")          # the default: no search
 ```
 
-Set **one** of the two. Sending both is accepted, but you are then steering the
-same thing with two dials and the result is harder to reason about — and for some
-questions Aivana cannot pass both through, in which case `top_p` wins and the
-temperature is dropped for that call.
+| value | behaviour |
+|---|---|
+| `True` | always search the web before answering |
+| `False` | never search |
+| *omitted* | the API's default applies; for an API key, that is no search |
 
-`top_p=0.0` is legal and is the most deterministic setting there is. Omitting the
-option is **not** the same as `1.0`: omitted leaves the choice to Aivana.
+On an API key the default is **off** — a search never happens unless you ask for
+one, so it cannot turn up unannounced on your bill. Omitting the option and
+passing `False` are still different requests: `False` stays "never search" even
+if the API's default changes, while an omitted option follows it. Grounding costs extra tokens
+and latency, so reach for `True` on current events, prices, releases, competitors
+and anything else that dates; leave it off for reasoning, code, writing and
+explanation, which do not improve with a web lookup.
 
-### Stop sequences
+**Billing.** A request that searches the web is charged every token used to answer
+it, not just your prompt and the answer, so it uses more tokens than the same
+question without search. If your balance can't cover a search, the request is
+refused with a 402 that says so.
+
+**When search is off but the question asks for it.** If a question asks for the web
+("search the web for…", a link to read) while search is off, the answer is written
+without searching, and `res.notices` says so:
+
+```python
+res = aivana.generate("Search the web for today's EU AI Act news")
+for notice in res.notices:            # [] when there is nothing to say
+    print(notice.code, notice.message)  # web_search_off ...
+```
+
+Set `web_search=True` to allow the search. `res.notices` is always present, and each
+message is safe to show to your own users.
+
+## Stop sequences
 
 Up to four strings. The answer ends where the first one appears, and the string
 itself is not returned.
@@ -379,7 +385,7 @@ know: it shapes the output you receive, so it behaves the same on every question
 — and the text past the marker is still generated and still billed, so this is not
 a way to spend less.
 
-### Intelligence Trace
+## Intelligence Trace
 
 Aivana decides how much intelligence each request needs. `intelligence_trace`
 asks it to show its working.
@@ -390,7 +396,7 @@ resp = aivana.generate(
     intelligence_trace=True,
 )
 
-print(resp.trace["summary"]["route"])       # "2-model verification"
+print(resp.trace["summary"]["route"])       # the kind of path the request took
 for step in resp.trace["steps"]:
     print(step["at_ms"], step["title"], "—", step["detail"])
 ```
@@ -398,7 +404,7 @@ for step in resp.trace["steps"]:
 ```
 1204 Understanding Request — Multi-part request with several considerations
 1240 Fresh Data Check — Existing knowledge is sufficient; no live lookup needed
-1255 Selecting Intelligence Path — A 2-model verification path would provide the most reliable answer
+1255 Selecting Intelligence Path — A verification path would provide the most reliable answer
 3980 Establishing Lead Perspective — Primary analysis generated
 6310 Independent Perspectives — A second perspective independently analyzed the request
 6402 Evaluating Perspectives — Perspectives agreed; the answer was confirmed rather than changed
@@ -406,7 +412,7 @@ for step in resp.trace["steps"]:
 8155 Completed — Response delivered
 ```
 
-The trace changes with the route. A simple question shows four steps and says
+The trace changes with the request; the steps above are illustrative. A simple question shows four steps and says
 additional perspectives were unlikely to improve the answer; a question needing
 current information shows the live-source lookup and the validation against what
 came back. `trace["summary"]` carries the route, how many perspectives were
@@ -430,28 +436,6 @@ single consolidated trace at the end.
 
 The trace describes decisions and outcomes. It does not name the models that
 answered, and it never exposes scoring, thresholds or prompts.
-
-`web_search` has three states:
-
-```python
-aivana.generate("What did the EU AI Act change in August?", web_search=True)
-aivana.generate("Explain how quicksort works", web_search=False)
-aivana.generate("Is our pricing still competitive?")          # the default: no search
-```
-
-| value | behaviour |
-|---|---|
-| `True` | always search the web before answering |
-| `False` | never search |
-| *omitted* | the API's default applies; for an API key, that is no search |
-
-On an API key the default is **off** — a search never happens unless you ask for
-one, so it cannot turn up unannounced on your bill. Omitting the option and
-passing `False` are still different requests: `False` stays "never search" even
-if the API's default changes, while an omitted option follows it. Grounding costs extra tokens
-and latency, so reach for `True` on current events, prices, releases, competitors
-and anything else that dates; leave it off for reasoning, code, writing and
-explanation, which do not improve with a web lookup.
 
 ## Temperature and length
 
@@ -527,24 +511,15 @@ for chunk in aivana.generate(
     print(chunk.delta, end="", flush=True)
 ```
 
-**Images.** Send a screenshot or diagram with the question:
+**Files.** Send a screenshot, diagram or document with the question — see
+[Files and documents](#files-and-documents) for the types and limits:
 
 ```python
-import base64
-
 res = aivana.generate(
     "What's driving the dip in this chart?",
-    attachments=[{
-        "mime_type": "image/png",
-        "data": base64.b64encode(open("chart.png", "rb").read()).decode(),
-    }],
+    attachments=[attach("chart.png", "image/png")],   # `attach` is defined above
 )
 ```
-
-`data` takes raw base64 or a full data URL. Up to 6 images per request, 8 MiB each
-decoded, in `image/png`, `image/jpeg`, `image/webp` or `image/gif`. Attachments
-apply to the **current turn only** and are never replayed, so resend the image with
-a follow-up about it.
 
 ## Errors
 

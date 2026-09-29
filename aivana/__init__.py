@@ -22,7 +22,7 @@ from aivana.client import (
     set_api_base,
     set_api_key,
 )
-from aivana.envelopes import GenerateResponse, StreamChunk
+from aivana.envelopes import GenerateResponse, Notice, StreamChunk
 from aivana.exceptions import (
     AivanaError,
     AuthError,
@@ -81,6 +81,7 @@ __all__ = [
     "generate_async",
     "generate_stream",
     "Chat",
+    "Notice",
     "GenerateResponse",
     "StreamChunk",
     "AivanaError",

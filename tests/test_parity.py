@@ -77,6 +77,25 @@ def test_response_exposes_trace_and_defaults_to_none():
     assert traced.trace["status"] == "completed"
 
 
+def test_response_exposes_notices_and_request_id():
+    from aivana.envelopes import GenerateResponse
+
+    base = {
+        "id": "gen_1",
+        "answer": "hi",
+        "intent": {"name": "direct_chat", "confidence": 0.0},
+    }
+    quiet = GenerateResponse(**base)
+    assert quiet.notices == [] and quiet.request_id == ""
+    noted = GenerateResponse(
+        **base,
+        request_id="req_1",
+        notices=[{"code": "web_search_off", "message": "Written without searching."}],
+    )
+    assert noted.request_id == "req_1"
+    assert noted.notices[0].code == "web_search_off"
+
+
 def test_body_carries_every_wire_field():
     body = _body("hello", **SAMPLE)
     missing = [f for f in WIRE_FIELDS if f not in body]
