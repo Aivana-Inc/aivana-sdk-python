@@ -114,6 +114,9 @@ async for chunk in aivana.generate_stream("Explain the CAP theorem"):
     print(chunk.delta, end="")
 ```
 
+A `response_format` of type `json_schema` cannot be streamed: see
+[Structured output](#structured-output-your-own-json-schema).
+
 ## Async
 
 ```python
@@ -255,6 +258,7 @@ that.
 | `stop_sequences` | list[str] | none — the answer ends naturally |
 | `intelligence_trace` | bool | off — no trace is returned |
 | `max_tokens` | int | sized to the question |
+| `response_format` | dict | none — an ordinary answer. See [Structured output](#structured-output-your-own-json-schema) |
 | `output_shape` | str | `"auto"` |
 | `attachments` | list | none |
 | `metadata` | dict | none |
@@ -385,6 +389,64 @@ know: it shapes the output you receive, so it behaves the same on every question
 — and the text past the marker is still generated and still billed, so this is not
 a way to spend less.
 
+## Structured output (your own JSON Schema)
+
+Pass a JSON Schema and get back an answer that validates against it, or an error.
+You never get malformed data with a success status.
+
+```python
+SCHEMA = {
+    "type": "object",
+    "properties": {
+        "vendorName": {"type": "string"},
+        "total": {"type": "number"},
+    },
+    "required": ["vendorName", "total"],
+    "additionalProperties": False,
+}
+
+res = aivana.generate(
+    "Extract the invoice: Acme Ltd, total due 1,250.00",
+    response_format={"type": "json_schema", "schema": SCHEMA},
+)
+
+res.structured   # {"vendorName": "Acme Ltd", "total": 1250.0}, validated
+res.answer       # the same object as compact JSON
+```
+
+- **Your schema is sent exactly as you wrote it.** Property names are not re-cased
+  or re-ordered.
+- **The root must be an object.** Aivana accepts a bounded subset of JSON Schema.
+  A keyword it does not support is refused up front, never silently ignored.
+- **It is answered whole, not streamed**, because the answer is checked against
+  your schema before any of it is sent. It also cannot be combined with
+  `stop_sequences` or `continue_`. `max_tokens` still works: a cap too small to
+  hold a valid object ends as a failed run, below.
+- **Two errors, with their own `.code`:**
+
+  ```python
+  from aivana import InvalidRequestError, UpstreamError
+
+  try:
+      res = aivana.generate("...", response_format={"type": "json_schema", "schema": SCHEMA})
+  except InvalidRequestError as err:
+      if err.code == "invalid_response_schema":
+          ...  # your schema uses something Aivana does not support: fix it
+  except UpstreamError as err:
+      if err.code == "structured_output_failed":
+          ...  # Aivana could not produce a conforming answer
+  ```
+
+  A run that ends in `structured_output_failed` is **not billed**. Retrying is
+  your decision: it costs time, and a second attempt is billed only if it succeeds.
+- **Billing.** The schema counts once, as input tokens, however Aivana answers.
+  A successful run is billed the same whether or not it needed a second try.
+
+`{"type": "text"}` is the ordinary answer. `response_format` is a different thing
+from `output_shape`: `output_shape="extract"` asks for a shape and does not
+guarantee it (`res.structured` may be `None`); `response_format` guarantees it or
+raises.
+
 ## Intelligence Trace
 
 Aivana decides how much intelligence each request needs. `intelligence_trace`
@@ -498,6 +560,10 @@ print(res.structured)         # parsed dict, or None
 print(res.structured_error)   # why parsing failed, if it did
 ```
 
+If the shape is a contract you depend on, use `response_format` instead: it
+validates against your own JSON Schema and raises rather than returning a
+best-effort parse. See [Structured output](#structured-output-your-own-json-schema).
+
 **Streaming with a persona.** Options behave identically on the streaming calls:
 
 ```python
@@ -526,6 +592,12 @@ res = aivana.generate(
 Every failure raises a subclass of `AivanaError`:
 
 `AuthError` · `RateLimitError` · `InvalidRequestError` · `UpstreamError`
+
+Check `err.code` for the specific reason. The ones you can act on:
+`invalid_response_schema`, `response_format_not_available` (the schema is fine, but
+this API does not serve JSON Schema (Strict) yet) and
+`structured_output_streaming_not_supported` (all `InvalidRequestError`: fix the
+request) and `structured_output_failed` (`UpstreamError`, not billed).
 
 ```python
 from aivana import RateLimitError

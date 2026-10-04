@@ -44,6 +44,7 @@ SAMPLE = {
     "stop_sequences": ["###"],
     "intelligence_trace": True,
     "effort": "low",
+    "response_format": {"type": "json_schema", "schema": {"type": "object"}},
 }
 
 
