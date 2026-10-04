@@ -90,7 +90,7 @@ WIRE_FIELDS = (
     "mode", "prompt", "messages", "system", "assistant_name", "temperature",
     "max_tokens", "output_shape", "attachments", "metadata",
     "previous_intent", "pending_action", "continue", "web_search", "top_p",
-    "stop_sequences", "intelligence_trace", "effort",
+    "stop_sequences", "intelligence_trace", "effort", "response_format",
 )
 
 # Mirrors the server's own cap (GenerateRequest.system) and @aivana/sdk's
@@ -137,6 +137,7 @@ def _body(
     stop_sequences: Optional[list] = None,
     intelligence_trace: Optional[bool] = None,
     effort: Optional[str] = None,
+    response_format: Optional[dict] = None,
 ) -> dict[str, Any]:
     """Build the request body. The single place any field reaches the wire."""
     if system is not None and str(system).strip() and len(str(system)) > MAX_SYSTEM_CHARS:
@@ -201,7 +202,38 @@ def _body(
     # it echoed in their own request rather than silently rewritten.
     if effort:
         body["effort"] = str(effort).strip().lower()
+    # `{"type": "json_schema", "schema": {...}}` asks for an answer that validates
+    # against the caller's own JSON Schema, or an explicit error: never malformed
+    # data with a 200. The SCHEMA IS SENT EXACTLY AS GIVEN: its keys are the
+    # caller's own field names, so nothing here may re-case or reorder them, and
+    # which keywords Aivana supports is the API's to decide, not this client's.
+    # Only the wrapper is copied, so the caller's dict is never mutated.
+    if response_format is not None:
+        if not isinstance(response_format, dict):
+            raise InvalidRequestError(
+                'response_format must be a dict like {"type": "json_schema", '
+                '"schema": {...}}.',
+                code="invalid_request",
+            )
+        body["response_format"] = dict(response_format)
     return body
+
+
+def _refuse_strict_stream(body: dict) -> None:
+    """A strict schema is answered whole, so it cannot be streamed.
+
+    The answer is checked against the schema before any of it is sent, which a
+    stream cannot wait for. The API refuses it too, with this same code; refusing
+    here saves the round trip and fails the same way in both SDKs.
+    """
+    fmt = body.get("response_format")
+    if isinstance(fmt, dict) and fmt.get("type") == "json_schema":
+        raise InvalidRequestError(
+            "A response_format of type json_schema cannot be streamed: its answer "
+            "is checked against your schema before it is sent. Call generate() "
+            "without stream, or drop response_format.",
+            code="structured_output_streaming_not_supported",
+        )
 
 
 # Keyword options shared by every entrypoint. Documented once; see _body above
@@ -246,6 +278,14 @@ _OPTS = """
         particular number of models or perspectives is guaranteed — and it is not
         a length control: use `max_tokens` for that. It is not a price setting
         either: pricing is by the tokens in the request and response.
+    response_format: {"type": "json_schema", "schema": {...}} for an answer that
+        validates against YOUR JSON Schema: `resp.structured` is the validated
+        object and `resp.answer` its compact JSON, or the call raises (a bad schema
+        is an InvalidRequestError, code `invalid_response_schema`; a run that could
+        not meet the schema is an UpstreamError, code `structured_output_failed`,
+        and is not billed). Not available with `stream`, `stop_sequences` or
+        `continue_`. {"type": "text"} is the ordinary answer. See the README's
+        "Structured output you can parse".
     output_shape: auto|text|recommendation|summary|tradeoffs|decision|extract.
     attachments: [{"mime_type": "image/png", "data": "<base64 or data: URL>"}] for
         THIS turn only; they are not replayed on later turns. Up to 5 files, 40 MiB
@@ -272,6 +312,7 @@ def generate(
     """
     body = _body(prompt, **options)
     if stream:
+        _refuse_strict_stream(body)
         return _sync_stream(body, timeout)
     with httpx.Client(timeout=timeout, base_url=api_base) as client:
         resp = client.post("/v1/generate", headers=_headers(), json=body)
@@ -319,6 +360,7 @@ async def generate_stream(
     """Async streaming generate. Same options as `generate`.
     """ + _OPTS
     body = _body(prompt, **options)
+    _refuse_strict_stream(body)
     async with httpx.AsyncClient(timeout=timeout, base_url=api_base) as client:
         async with client.stream("POST", "/v1/generate:stream",
                                  headers=_headers(), json=body) as resp:
