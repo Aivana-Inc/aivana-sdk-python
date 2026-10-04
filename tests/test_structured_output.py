@@ -159,7 +159,7 @@ def test_a_plain_text_format_may_still_stream(no_network):
 
 # ---- errors -------------------------------------------------------------------
 
-@pytest.mark.parametrize("code", ["invalid_response_schema",
+@pytest.mark.parametrize("code", ["invalid_response_schema", "response_format_not_available",
                                   "structured_output_streaming_not_supported"])
 def test_a_refused_request_is_the_callers_to_fix(code):
     err = from_error_payload(_envelope(code), 422)

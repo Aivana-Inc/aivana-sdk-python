@@ -594,9 +594,10 @@ Every failure raises a subclass of `AivanaError`:
 `AuthError` · `RateLimitError` · `InvalidRequestError` · `UpstreamError`
 
 Check `err.code` for the specific reason. The ones you can act on:
-`invalid_response_schema` and `structured_output_streaming_not_supported`
-(both `InvalidRequestError`: fix the request) and `structured_output_failed`
-(`UpstreamError`, not billed).
+`invalid_response_schema`, `response_format_not_available` (the schema is fine, but
+this API does not serve JSON Schema (Strict) yet) and
+`structured_output_streaming_not_supported` (all `InvalidRequestError`: fix the
+request) and `structured_output_failed` (`UpstreamError`, not billed).
 
 ```python
 from aivana import RateLimitError
