@@ -36,3 +36,30 @@ jobs:
 
       - name: The installed aivana command runs
         run: aivana --version
+
+  # One fixed check name, `lint-and-build`, so a single org-level ruleset can
+  # require it in every code repo. Don't rename it, and keep it separate from
+  # the `test` matrix above. The repo has no ruff configuration, so lint is
+  # ruff's conservative set (syntax errors, broken string formats, invalid
+  # comparisons, undefined names); build is the real sdist and wheel build.
+  lint-and-build:
+    name: lint-and-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Lint
+        run: |
+          pip install ruff==0.6.9
+          ruff check --select E9,F63,F7,F82 .
+
+      - name: Build the sdist and wheel
+        run: |
+          pip install build
+          python -m build
