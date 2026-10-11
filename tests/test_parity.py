@@ -165,7 +165,7 @@ def test_api_base_defaults_to_production():
     import importlib
 
     import aivana.client as c
-    assert importlib.reload(c).api_base == "https://developers.aivana.ai"
+    assert importlib.reload(c).api_base == "https://api.aivana.ai"
 
 
 def test_module_level_config_reaches_the_client():
