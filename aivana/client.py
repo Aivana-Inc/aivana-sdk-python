@@ -12,12 +12,14 @@ from aivana.exceptions import AivanaError, InvalidRequestError, from_error_paylo
 
 # Module-level config (Stripe-style)
 api_key: Optional[str] = None
-# Production, and the same default as @aivana/sdk's DEFAULT_BASE. It used to point
+# Production API (`developers.aivana.ai` was the API's name until 2026-10-11, when it became
+# AI Studio, the website; releases up to 0.3.0 default to it), and the same default as
+# @aivana/sdk's DEFAULT_BASE. It used to point
 # at the local engine port, which meant the first call after `pip install aivana`
 # was a connection-refused to localhost unless the caller happened to know about
 # set_api_base(). Local development is the case that should have to say so, not
 # the default.
-api_base: str = "https://developers.aivana.ai"
+api_base: str = "https://api.aivana.ai"
 
 
 def set_api_key(key: str) -> None:

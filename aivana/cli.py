@@ -135,7 +135,7 @@ environment:
   AIVANA_API_KEY    your API key (required). Create one in AI Studio > API Keys.
                     It is read from the environment only: a key typed as an
                     argument would land in your shell history and process list.
-  AIVANA_API_BASE   API address. Defaults to https://developers.aivana.ai
+  AIVANA_API_BASE   API address. Defaults to https://api.aivana.ai
 
 exit codes:
   0  success                     4  rate limited: wait, then retry
@@ -245,7 +245,7 @@ def _ask(args: argparse.Namespace) -> int:
         # Without a scheme and host, every request would fail as a network error
         # that says nothing about the actual mistake.
         if parts.scheme not in ("http", "https") or not parts.hostname:
-            _error("AIVANA_API_BASE must be a full URL, such as https://developers.aivana.ai")
+            _error("AIVANA_API_BASE must be a full URL, such as https://api.aivana.ai")
             return EXIT_USAGE
         aivana.set_api_base(base)
         if parts.scheme == "http" and parts.hostname not in ("localhost", "127.0.0.1", "::1"):
@@ -442,7 +442,7 @@ def _report_api_error(e: AivanaError, *, json_mode: bool) -> int:
         if e.code == "host_not_allowed":
             hints.append(f"Answers are only served from the developer API host, and "
                          f"{aivana.api_base} isn't it. Unset AIVANA_API_BASE to use "
-                         f"https://developers.aivana.ai.")
+                         f"https://api.aivana.ai.")
         else:
             code = EXIT_AUTH
             hints.append("This key isn't allowed to generate answers. Create one "

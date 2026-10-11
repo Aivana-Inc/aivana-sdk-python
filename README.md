@@ -29,7 +29,7 @@ Your API key is the only required setting. `aivana.api_key = ...` and
 `AIVANA_API_KEY` environment variable, the same one the `aivana` command reads; a
 key set in code always wins.
 
-`api_base` defaults to the hosted API at `https://developers.aivana.ai`, the same
+`api_base` defaults to the hosted API at `https://api.aivana.ai`, the same
 default as `@aivana/sdk`. Point it elsewhere only to run against your own
 deployment:
 

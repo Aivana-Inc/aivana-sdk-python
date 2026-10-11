@@ -78,7 +78,7 @@
         "stderr": "",
         "requests": 1,
         "request": {
-          "url": "https://developers.aivana.ai/v1/generate:stream",
+          "url": "https://api.aivana.ai/v1/generate:stream",
           "headers": {
             "x-api-key": "ai_live_conformance_not_real"
           }
@@ -297,7 +297,7 @@
           "answer": "42"
         },
         "request": {
-          "url": "https://developers.aivana.ai/v1/generate"
+          "url": "https://api.aivana.ai/v1/generate"
         }
       }
     },
@@ -684,13 +684,13 @@
         "hi"
       ],
       "env": {
-        "AIVANA_API_BASE": "developers.aivana.ai"
+        "AIVANA_API_BASE": "api.aivana.ai"
       },
       "expect": {
         "exit": 2,
         "requests": 0,
         "stderr_contains": [
-          "aivana: error: AIVANA_API_BASE must be a full URL, such as https://developers.aivana.ai\n"
+          "aivana: error: AIVANA_API_BASE must be a full URL, such as https://api.aivana.ai\n"
         ]
       }
     },
@@ -1520,7 +1520,7 @@
       "expect": {
         "exit": 6,
         "stderr_contains": [
-          "aivana: error: couldn't reach https://developers.aivana.ai"
+          "aivana: error: couldn't reach https://api.aivana.ai"
         ]
       }
     },
