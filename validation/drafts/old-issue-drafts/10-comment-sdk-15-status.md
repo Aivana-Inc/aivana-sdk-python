@@ -30,7 +30,7 @@ Run as an external developer on 2026-10-20: macOS arm64, Python 3.14 (installs a
 | Issue | Findings | Severity | Owner |
 |---|---|---|---|
 | #NN A failed stream ends silently with a partial answer | F1 | High | SDK |
-| #NN Not every failure raises AivanaError | F5, F15 | Medium | SDK + CLI |
+| #NN Not every failure raises AivanaError | F5, F17 | Medium | SDK + CLI |
 | #NN Retrying a failed Chat.send() sends the question twice | F8 | Medium | SDK |
 | #NN Error classes vs retry/support docs (504, Retry-After, 422, X-Request-Id) | F3, F4, F6, F7 | Low | SDK |
 | #NN max_tokens is not enforced as a ceiling | F11 | Medium | API |
@@ -44,7 +44,7 @@ Run as an external developer on 2026-10-20: macOS arm64, Python 3.14 (installs a
 - **F4 server half fixed:** production 401s now include `request_id`.
 - **F2 reframed, High -> Low:** test keys are documented (Docs > API Keys) as accepted only in their own environment, so the 401 on production is by design. What remains is the misleading error text.
 - **F12 / F14 narrowed** to documentation questions after checking the Docs wording.
-- **New:** F15 (an unparseable 200 crashes the CLI with a traceback), F16 (effort is not a ceiling).
+- **New:** F17 (an unparseable 200 crashes the CLI with a traceback), F16 (effort is not a ceiling).
 - **Not a defect:** the SDK always sends `"mode": "aivana_mmi"`, a fixed constant the conformance spec expects.
 
 The CLI matches its documentation completely and handles every failure case. It is the most reliable path for the journey demo.

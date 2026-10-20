@@ -22,14 +22,14 @@ Run as an external developer on 2026-10-20: macOS arm64, Python 3.14 (installs a
 - [x] Published docs and examples are checked against actual behavior (42 examples, /docs/cli statement by statement).
 - [x] Every failed case has reproducible evidence (test ID, request id, repro snippet).
 - [x] Substantive defects are documented below with reproductions, test IDs and request ids (kept in this issue rather than opened separately).
-- [x] Findings are incorporated into the AI Studio integrated developer journey: Aivana-Inc/aivana-ai-studio#149 (comment).
+- [ ] Findings are incorporated into the AI Studio integrated developer journey (summary for Aivana-Inc/aivana-ai-studio#149 is next).
 
 ### Changed since the Oct 5 report (0.3.0)
 - 0.3.1 moved the default host to `api.aivana.ai`; the suite follows it.
 - **F4 server half fixed:** production 401s now include `request_id`.
 - **F2 reframed, High -> Low:** test keys are documented (Docs > API Keys) as accepted only in their own environment, so the 401 on production is by design. What remains is the misleading error text.
 - **F12 / F14 narrowed** to documentation questions after checking the Docs wording.
-- **New:** F15 (an unparseable 200 crashes the CLI with a traceback), F16 (effort is not a ceiling).
+- **New:** F17 (an unparseable 200 crashes the CLI with a traceback), F16 (effort is not a ceiling).
 - **Not a defect:** the SDK always sends `"mode": "aivana_mmi"`, a fixed constant the conformance spec expects.
 
 The CLI matches its documentation completely and handles every failure case. It is the most reliable path for the journey demo.
@@ -39,7 +39,7 @@ The CLI matches its documentation completely and handles every failure case. It 
 | ID | Finding | Severity | Owner | Suite case |
 |---|---|---|---|---|
 | F1 | A failed stream ends silently with a partial answer | High | SDK | PY-STR-07 |
-| F5, F15 | Not every failure raises `AivanaError` (network errors, timeouts, unparseable 200s) | Medium | SDK + CLI | PY-ERR-05/06, PY-CLI-34 |
+| F5, F17 | Not every failure raises `AivanaError` (network errors, timeouts, unparseable 200s) | Medium | SDK + CLI | PY-ERR-05/06, PY-CLI-34 |
 | F8 | Retrying a failed `Chat.send()` sends the question twice | Medium | SDK | PY-CHT-04 |
 | F11 | `max_tokens` is not enforced as a ceiling | Medium | API | PY-LIV-11 |
 | F13 | JSON Schema answers report `output_tokens = 0` | Medium | API | PY-LIV-22 |
@@ -88,7 +88,7 @@ aivana 0.3.1 (PyPI), Python 3.14.0, macOS arm64. Validation run 2026-10-20.
 </details>
 
 <details>
-<summary><b>F5, F15: Not every failure raises AivanaError: network errors, timeouts and unparseable 200s escape as httpx / pydantic exceptions</b></summary>
+<summary><b>F5, F17: Not every failure raises AivanaError: network errors, timeouts and unparseable 200s escape as httpx / pydantic exceptions</b></summary>
 
 #### What happens
 Code written to the docs (`except AivanaError:`) misses three kinds of failure:
@@ -317,7 +317,7 @@ On the dev host, `effort="low"` and `effort="high"` produced identical Intellige
 | Should we move billing off Stripe before the Series A? | low | **Premium** | Multi-model collaboration | **3** | 15.1 s | `req_e72fa085c0ca0d4d3ce57b60` |
 | ″ | high | Premium | Multi-model collaboration | 3 | 21.6 s | `req_3009bdcf10330980bfc1b955` |
 
-All with `intelligence_trace=True, max_tokens=60`, 2026-10-20, `dev-developers.aivana.ai`. Raw data: `results/run-2026-10-20/effort_probe.json`.
+All with `intelligence_trace=True, max_tokens=60`, 2026-10-20, `dev-developers.aivana.ai`.
 
 #### Docs say
 - Docs > Parameters / README: effort is "a ceiling on how much intelligence Aivana may apply"; "Low sets a lower reasoning ceiling and can reduce latency on simpler tasks".

@@ -352,7 +352,7 @@ def test_json(cli, api):
 
 
 @case("PY-CLI-34", "CLI", "A 200 --json response the SDK cannot parse ends in a clean `aivana: error:` (exit 1), not a traceback")
-@pytest.mark.xfail(reason="F15: a 200 body missing a required field (e.g. intent) raises pydantic.ValidationError, "
+@pytest.mark.xfail(reason="F17: a 200 body missing a required field (e.g. intent) raises pydantic.ValidationError, "
                    "which escapes the CLI as a raw Python traceback; it is not an AivanaError either")
 def test_json_unparseable_200(cli, api):
     api.json = {k: v for k, v in DEFAULT_JSON.items() if k != "intent"}

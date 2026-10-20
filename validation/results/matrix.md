@@ -38,7 +38,7 @@ Totals: DEFECT (known) 16, FIXED? (re-check) 1, PASS 102
 | PY-CLI-31 | CLI | --trace prints the Intelligence Trace on stderr after the answer; stdout stays the answer | offline | PASS |  |  |
 | PY-CLI-32 | CLI | --image: non-image files are refused locally (exit 2) with how to send a document instead | offline | PASS |  |  |
 | PY-CLI-33 | CLI | --image with a missing file names the file (exit 2, nothing sent) | offline | PASS |  |  |
-| PY-CLI-34 | CLI | A 200 --json response the SDK cannot parse ends in a clean `aivana: error:` (exit 1), not a traceback | offline | DEFECT (known) | F15 |  |
+| PY-CLI-34 | CLI | A 200 --json response the SDK cannot parse ends in a clean `aivana: error:` (exit 1), not a traceback | offline | DEFECT (known) | F17 |  |
 | PY-CLI-40 | CLI | No AIVANA_API_KEY: exit 3 before any request, with how to set it | offline | PASS |  |  |
 | PY-CLI-41 | CLI | Each documented HTTP error maps to the documented exit code, message + request id on stderr | offline | PASS |  |  |
 | PY-CLI-42 | CLI | A 422 validation error names the flag to fix (exit 1) | offline | PASS |  |  |

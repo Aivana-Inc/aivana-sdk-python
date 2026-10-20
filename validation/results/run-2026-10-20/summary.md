@@ -14,11 +14,11 @@ Evidence: evidence.jsonl in this folder (keys redacted).
 ## Run 2b - same day, CLI added (tests/test_cli.py)
 pytest: 116 passed, 14 xfailed, 2 xpassed in 337 s
 Matrix totals: PASS 90, DEFECT (known) 14, FIXED? 2, FAIL 0
-- CLI offline: 30 cases (installed console script as a subprocess, fake API on 127.0.0.1) - all pass except F15.
+- CLI offline: 30 cases (installed console script as a subprocess, fake API on 127.0.0.1) - all pass except F17.
 - CLI live: 7 of 8 pass (basic, --json, --trace, pipe, invalid key -> exit 3, --shape extract --json, --image).
 - PY-CLI-L08 (F2): AIVANA_API_BASE unset + valid ai_test_ key -> exit 3, "Invalid or expired API key. Generate a new key",
   hint `export AIVANA_API_KEY=ai_live_...` - misleading: the key is valid on dev.
-- NEW F15: --json with a 200 body missing a required field (intent) crashes with a raw pydantic traceback (exit 1),
+- NEW F17: --json with a 200 body missing a required field (intent) crashes with a raw pydantic traceback (exit 1),
   not `aivana: error:`; the SDK raises pydantic.ValidationError, not an AivanaError. Low severity (the real API sends it).
 - Not a defect: the SDK always sends "mode": "aivana_mmi" (fixed constant; conformance/cli.json expects it).
 

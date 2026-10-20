@@ -1,4 +1,4 @@
-<!-- TARGET: Aivana-Inc/aivana-sdk-python | labels: bug, OSU Developer Platform Team | findings F5 (Medium), F15 (Low) -->
+<!-- TARGET: Aivana-Inc/aivana-sdk-python | labels: bug, OSU Developer Platform Team | findings F5 (Medium), F17 (Low) -->
 # Not every failure raises AivanaError: network errors, timeouts and unparseable 200s escape as httpx / pydantic exceptions
 
 Found during external-developer validation (#15, part of #14).
