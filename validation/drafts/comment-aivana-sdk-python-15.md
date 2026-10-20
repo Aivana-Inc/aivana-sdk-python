@@ -1,6 +1,6 @@
 ## Validation complete: aivana 0.3.1 (Python SDK + CLI)
 
-Run as an external developer on 2026-10-20: macOS arm64, Python 3.14 (installs also checked on 3.10, 3.12, 3.13), team test key on `dev-developers.aivana.ai`. The suite is repeatable (`run_validation.sh`, `install_check.sh`) and writes a matrix with one row per case, plus redacted live evidence.
+Run as an external developer on 2026-10-20: macOS arm64, Python 3.14 (installs also checked on 3.10, 3.12, 3.13), team test key on `dev-developers.aivana.ai`. The suite is repeatable (`run_validation.sh`, `install_check.sh`) and writes a matrix with one row per case, plus redacted live evidence. It is committed on branch `aaronzheng/python-sdk-validation` (in `validation/`) and will be pushed once I have write access to this repo.
 
 **Totals: 119 cases: 102 pass, 16 known defects, 1 fixed since Oct 5, 0 unexpected failures.** Install checks: 8/8 pass.
 
@@ -83,7 +83,7 @@ Suite case: `PY-STR-07` (offline). CLI counterpart passes: `PY-CLI-45`.
 Raise the mapped `AivanaError` subclass when an `error` event arrives (after yielding the chunks received so far), using the same type-to-class mapping as HTTP errors: `upstream_error`/`timeout` -> `UpstreamError`, `invalid_request` -> `InvalidRequestError`. If raising is not wanted, the README and Docs streaming examples should at least show the `error` check.
 
 #### Environment
-aivana 0.3.1 (PyPI), Python 3.14.0, macOS arm64. Validation suite: `validation/` on branch `aaronzheng/python-sdk-validation` (results/matrix.md, run 2026-10-20).
+aivana 0.3.1 (PyPI), Python 3.14.0, macOS arm64. Validation run 2026-10-20.
 
 </details>
 

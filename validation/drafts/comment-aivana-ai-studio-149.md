@@ -1,6 +1,6 @@
 ## Python SDK / CLI validation: input for the journey (from Aivana-Inc/aivana-sdk-python#15)
 
-Python coverage of the journey's steps 2, 5 and 6, run as an external developer on `aivana` 0.3.1 (PyPI), 2026-10-20. Full matrix and evidence are in the validation suite (`validation/` on branch `aaronzheng/python-sdk-validation` of aivana-sdk-python: `results/matrix.md`, `results/install.md`, `results/evidence.jsonl`).
+Python coverage of the journey's steps 2, 5 and 6, run as an external developer on `aivana` 0.3.1 (PyPI), 2026-10-20. Full results and reproductions are in the comment on Aivana-Inc/aivana-sdk-python#15.
 
 | Journey step | Expected (Docs) | Actual | Result | Issue |
 |---|---|---|---|---|
