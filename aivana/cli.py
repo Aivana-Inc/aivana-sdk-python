@@ -207,7 +207,8 @@ def _parser() -> argparse.ArgumentParser:
                    help="answer format: " + ", ".join(SHAPES))
     p.add_argument("--web", dest="web_search", action=argparse.BooleanOptionalAction,
                    default=None,
-                   help="--web always searches the web first, --no-web never does. "
+                   help="--web allows web search (Aivana decides for each message "
+                        "whether it needs one), --no-web never searches. "
                         "With neither, there is no search: the default for API keys.")
     p.add_argument("--system", metavar="TEXT",
                    help="your own instructions: persona, tone, format "

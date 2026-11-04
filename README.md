@@ -335,7 +335,7 @@ while answering, so a long persona costs more tokens than its length suggests. T
 
 ## Web search
 
-`web_search` has three states:
+`web_search` allows web search, and has three states:
 
 ```python
 aivana.generate("What did the EU AI Act change in August?", web_search=True)
@@ -345,7 +345,7 @@ aivana.generate("Is our pricing still competitive?")          # the default: no 
 
 | value | behaviour |
 |---|---|
-| `True` | always search the web before answering |
+| `True` | web search is allowed: Aivana decides for each message whether it needs one (a greeting is not searched) |
 | `False` | never search |
 | *omitted* | the API's default applies; for an API key, that is no search |
 
@@ -534,7 +534,7 @@ support.send("Customer wants a refund after 40 days.")
 support.send("They're now threatening a chargeback.")   # remembers the above
 ```
 
-**A research assistant that always searches**, overridden per turn where it does
+**A research assistant that may search**, turned off per turn where it does
 not need to:
 
 ```python

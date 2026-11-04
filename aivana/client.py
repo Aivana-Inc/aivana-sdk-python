@@ -255,8 +255,9 @@ _OPTS = """
         than both. Omitting it is not the same as 1.0: omitted leaves every model
         on its own default. Where a model cannot accept both, Aivana honours
         `top_p` and drops the temperature for that call.
-    web_search: whether to ground this answer in a live web search. True always
-        searches, False never searches. OMITTING it applies the API's default, and
+    web_search: whether web search is allowed. True lets Aivana decide, for each
+        message, whether to ground the answer in a live search (a greeting is not
+        searched), False never searches. OMITTING it applies the API's default, and
         for an API key that default is off, so a search only happens when you ask
         for one. False still says more than omitting: it stays "never" even if the
         default changes.
