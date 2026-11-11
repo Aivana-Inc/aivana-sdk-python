@@ -608,6 +608,14 @@ except RateLimitError as err:
     backoff(err)
 ```
 
+## Unreleased candidate: saved Blueprint invocation
+
+The source branch includes `aivana.blueprints.generate` and `aivana.blueprints.stream`,
+with asynchronous counterparts. They require a saved Blueprint ID and explicit version
+and never fall back to ordinary Generate. See the [candidate integration guide](docs/blueprint-invocation.md)
+for examples, checks and the API deployment and maintainer release gates.
+This is not a published capability.
+
 ## License
 
 Apache-2.0

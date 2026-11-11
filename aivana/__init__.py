@@ -22,7 +22,7 @@ from aivana.client import (
     set_api_base,
     set_api_key,
 )
-from aivana.envelopes import GenerateResponse, Notice, StreamChunk
+from aivana.envelopes import BlueprintGenerateResponse, BlueprintReference, GenerateResponse, Notice, StreamChunk
 from aivana.exceptions import (
     AivanaError,
     AuthError,
@@ -30,7 +30,9 @@ from aivana.exceptions import (
     InvalidRequestError,
     RateLimitError,
     UpstreamError,
+    UnsupportedAPIError,
 )
+from aivana import blueprints
 
 # `api_key` and `api_base` are deliberately NOT imported into this namespace.
 # `from aivana.client import api_key` binds a COPY of the value at import time, so
@@ -73,6 +75,10 @@ except Exception:                       # running from a source checkout
     __version__ = "0.0.0+local"
 
 __all__ = [
+    "blueprints",
+    "BlueprintReference",
+    "BlueprintGenerateResponse",
+    "UnsupportedAPIError",
     "api_base",
     "api_key",
     "set_api_base",

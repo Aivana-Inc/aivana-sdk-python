@@ -1,0 +1,36 @@
+{
+  "contract": "https://github.com/Aivana-Inc/aivana-intelligence-api/issues/367",
+  "synthetic": true,
+  "id": "bp_sdk_fixture",
+  "version": 3,
+  "input": {
+    "prompt": "Reply to the fictional customer.",
+    "messages": [{"role": "user", "content": "Earlier context"}],
+    "attachments": [{"mime_type": "text/csv", "data": "YQox"}],
+    "metadata": {"case": "synthetic-sdk-contract"},
+    "previous_intent": "support",
+    "pending_action": "reply",
+    "continue": false,
+    "assistant_name": "Example assistant",
+    "intelligence_trace": false
+  },
+  "response": {
+    "id": "gen_fixture",
+    "request_id": "req_fixture",
+    "answer": "A fictional reply.",
+    "intent": {"name": "support", "confidence": 1.0, "signal": ""},
+    "blueprint": {"id": "bp_sdk_fixture", "version": 3},
+    "usage": {"input_tokens": 10, "output_tokens": 4, "cached_tokens": 0, "credits": 0.000026},
+    "notices": []
+  },
+  "errors": [
+    {"status": 404, "body": {"detail": "Not Found"}, "code": "blueprint_invocation_unsupported"},
+    {"status": 404, "body": {"error": {"code": "blueprint_not_found", "message": "Blueprint not found.", "request_id": "req_missing"}}, "code": "blueprint_not_found"},
+    {"status": 401, "body": {"error": {"code": "auth", "message": "Invalid key."}}, "code": "auth"},
+    {"status": 403, "body": {"error": {"code": "forbidden", "message": "Permission refused."}}, "code": "forbidden"},
+    {"status": 402, "body": {"error": {"code": "insufficient_credit", "message": "Credit required."}}, "code": "insufficient_credit"},
+    {"status": 422, "body": {"error": {"code": "invalid_request", "message": "Invalid input.", "details": [{"loc": ["body", "prompt"], "msg": "required", "type": "missing"}]}}, "code": "invalid_request"},
+    {"status": 429, "body": {"error": {"code": "rate_limit_exceeded", "message": "Wait before trying again."}}, "code": "rate_limit_exceeded"},
+    {"status": 502, "body": {"error": {"code": "upstream", "message": "Temporary failure."}}, "code": "upstream"}
+  ]
+}

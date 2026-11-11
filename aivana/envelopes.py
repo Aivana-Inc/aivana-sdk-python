@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, StrictInt
 
 
 class Intent(BaseModel):
@@ -72,6 +72,16 @@ class GenerateResponse(BaseModel):
     # plain dict on purpose: the step vocabulary is the server's to evolve, and a
     # modelled shape here would reject a server that added a step.
     trace: Optional[dict[str, Any]] = None
+
+
+class BlueprintReference(BaseModel):
+    id: str
+    version: StrictInt = Field(gt=0, le=2**53 - 1)
+
+
+class BlueprintGenerateResponse(GenerateResponse):
+    """Generate response plus the saved configuration that actually ran."""
+    blueprint: BlueprintReference
 
 
 class StreamChunk(BaseModel):
