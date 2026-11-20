@@ -44,4 +44,36 @@ The CLI cases check against the README "Command line" section and AI Studio > Do
 
 To add a case, write a test with `@pytest.mark.case("PY-XXX-NN", "Area", "what it checks")`. If it documents a defect, add `@pytest.mark.xfail(strict=True, reason="Fn: ...")`.
 
-The SDK version is pinned in `requirements.txt` (`aivana==0.3.1`). Bump it when Aivana publishes a new release, then rerun.
+The SDK version is pinned in `requirements.txt` (`aivana==0.3.1`), which is what a plain run tests.
+
+## Testing another version, or a release candidate
+
+The pin is only the default. To test a different release, or a wheel that is not published yet, name it (the pin is not edited):
+
+```bash
+python -m build --wheel                    # in the repo root
+AIVANA_SDK_SPEC=/path/aivana-0.4.0-py3-none-any.whl \
+AIVANA_EXPECT_SDK_VERSION=0.4.0 \
+AIVANA_RESULTS_DIR=/tmp/validation-results \
+  bash run_validation.sh
+# or a published version:  AIVANA_SDK_SPEC=aivana==0.4.0
+```
+
+`AIVANA_EXPECT_SDK_VERSION` makes the run stop (exit 2) unless exactly that version is installed, so a gate cannot pass by testing the
+wrong package. `AIVANA_RESULTS_DIR` keeps the run from overwriting the committed evidence in `results/`. A later version can turn a known
+defect into `FIXED? (re-check)`: that is reported with a `NOTICE` line and does not fail the run (pytest's own summary still says
+"1 failed" for it, because `xfail_strict` is on; the exit status is what counts). Set `AIVANA_STRICT_KNOWN=1` if you want a fixed
+defect to fail the run until the known-defect list is updated.
+
+## Exit code
+
+`run_validation.sh` exits with the suite's verdict, so a script or a release gate can trust it (it used to end in `|| true`, which made every run exit 0):
+
+| Exit | Meaning |
+|---|---|
+| 0 | nothing unexpected: every case is PASS, DEFECT (known), FIXED? (re-check) or SKIP |
+| 1 | at least one case **FAILED**, or a test or its setup errored (including one that is not in the matrix) |
+| 2 | the installed version is not the one in `AIVANA_EXPECT_SDK_VERSION` |
+| 5 | pytest collected no tests (a filter that matches nothing): not a pass |
+
+Without a key the live cases skip and the run still exits 0. `tests/test_exit_status.py` pins all of this.

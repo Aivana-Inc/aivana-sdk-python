@@ -29,7 +29,8 @@ import aivana
 from aivana import client as _client
 
 HERE = Path(__file__).parent
-RESULTS = HERE / "results"
+# AIVANA_RESULTS_DIR keeps a gate run from overwriting the committed evidence in results/.
+RESULTS = Path(os.environ["AIVANA_RESULTS_DIR"]).resolve() if os.environ.get("AIVANA_RESULTS_DIR") else HERE / "results"
 
 # Live tests default to the dev host - the only one that accepted the team's ai_test_ key
 # in the Sept 29 first-call test. Override with AIVANA_API_BASE.
@@ -40,6 +41,9 @@ OFFLINE_BASE = "https://api.aivana.test"
 
 _rows: dict[str, dict] = {}
 _evidence: list[dict] = []
+# What the exit status is built from (see pytest_sessionfinish): failures that are real, and known defects that now pass.
+_real_failures: list[str] = []
+_fixed_cases: list[str] = []
 
 
 def _redact(obj):
@@ -74,6 +78,11 @@ def pytest_runtest_makereport(item, call):
         rep.outcome = "skipped"
         rep.longrepr = (str(item.fspath), item.location[1] or 0,
                         "Skipped: rate-limited (429) by the API - rerun later")
+    xf = item.get_closest_marker("xfail")
+    strict_xpass = bool(xf) and "XPASS" in (rep.longreprtext or "")
+    if rep.failed and not strict_xpass:
+        # a case that fails, a setup error, or a failure in a test that has no matrix row: all are real
+        _real_failures.append(item.nodeid)
     m = item.get_closest_marker("case")
     if not m:
         return
@@ -83,7 +92,6 @@ def pytest_runtest_makereport(item, call):
         "mode": "live" if item.get_closest_marker("live") else "offline",
         "result": "", "finding": "", "detail": "",
     })
-    xf = item.get_closest_marker("xfail")
     finding = (xf.kwargs.get("reason", "") or "").split(":")[0].strip() if xf else ""
     res, detail = None, ""
     if rep.when == "setup" and rep.skipped:
@@ -115,9 +123,24 @@ def pytest_runtest_makereport(item, call):
             row["detail"] = detail
         if res in ("DEFECT (known)", "FIXED? (re-check)"):
             row["finding"] = finding
+    if res == "FIXED? (re-check)" and cid not in _fixed_cases:
+        _fixed_cases.append(cid)
 
 
 def pytest_sessionfinish(session, exitstatus):
+    # The exit status a script or a release gate sees. pytest's own is 1 for ANY failure, and `xfail_strict` makes a known
+    # defect that now passes (the SDK got better) a failure too, so a release that FIXES a defect would turn a gate red for
+    # good news. Here only a real failure is 1: a case that fails, a setup error, a test that errors outside the matrix.
+    # A fixed defect is printed as a notice, because a person should update the report. Other statuses are left alone
+    # (2 interrupted, 3 internal error, 4 usage error, 5 nothing collected). AIVANA_STRICT_KNOWN=1 keeps pytest's own.
+    if _fixed_cases:
+        tr = session.config.pluginmanager.get_plugin("terminalreporter")
+        if tr is not None:
+            for cid in _fixed_cases:
+                tr.write_line(f"NOTICE  {cid} now passes: the SDK changed, so update the known-defect list and the report "
+                              "(pytest counts it as 'failed' because xfail_strict is on; the exit status does not)")
+    if exitstatus == 1 and not _real_failures and os.environ.get("AIVANA_STRICT_KNOWN") != "1":
+        session.exitstatus = 0
     if not _rows:
         return
     RESULTS.mkdir(exist_ok=True)
@@ -164,8 +187,11 @@ def evidence(request):
 def sdk_state():
     """Snapshot and restore the SDK's module-level config around a test."""
     saved = (_client.api_key, _client.api_base, os.environ.get("AIVANA_API_KEY"))
+    saved_retries = getattr(_client, "max_retries", None)     # 0.4.0 and later
     yield
     _client.api_key, _client.api_base = saved[0], saved[1]
+    if saved_retries is not None:
+        _client.max_retries = saved_retries
     if saved[2] is None:
         os.environ.pop("AIVANA_API_KEY", None)
     else:
@@ -178,6 +204,10 @@ def offline(sdk_state, monkeypatch):
     monkeypatch.delenv("AIVANA_API_KEY", raising=False)
     _client.api_key = None
     aivana.set_api_base(OFFLINE_BASE)
+    # Most offline cases check what ONE response turns into. Since 0.4.0 the SDK waits and retries a per-minute 429 (and
+    # honours its Retry-After), which made two cases sit for 12 s x 2 retries each; 0.3.1 has no such setting.
+    if hasattr(_client, "set_max_retries"):
+        _client.set_max_retries(0)
     return OFFLINE_BASE
 
 
