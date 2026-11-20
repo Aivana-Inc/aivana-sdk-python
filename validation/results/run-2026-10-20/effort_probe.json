@@ -1,0 +1,74 @@
+[
+ {
+  "q": "What's the default port for Postgres?",
+  "effort": "low",
+  "level": "Efficient",
+  "route": "Efficient single-model",
+  "perspectives": 1,
+  "out_tok": 12,
+  "in_tok": 9,
+  "credits": 5.7e-05,
+  "latency_ms": 4593,
+  "request_id": "req_cdaaa2a73db13f0d89f22def"
+ },
+ {
+  "q": "What's the default port for Postgres?",
+  "effort": "high",
+  "level": "Efficient",
+  "route": "Efficient single-model",
+  "perspectives": 1,
+  "out_tok": 12,
+  "in_tok": 9,
+  "credits": 5.7e-05,
+  "latency_ms": 2194,
+  "request_id": "req_6540457bdf7a1d92c3375af0"
+ },
+ {
+  "q": "Should we enter the EU market in 2027? O",
+  "effort": "low",
+  "level": "Premium",
+  "route": "Multi-model collaboration",
+  "perspectives": 3,
+  "out_tok": 58,
+  "in_tok": 13,
+  "credits": 0.000245,
+  "latency_ms": 15110,
+  "request_id": "req_3f66b584485de8b7c9383656"
+ },
+ {
+  "q": "Should we enter the EU market in 2027? O",
+  "effort": "high",
+  "level": "Premium",
+  "route": "Multi-model collaboration",
+  "perspectives": 3,
+  "out_tok": 63,
+  "in_tok": 13,
+  "credits": 0.000265,
+  "latency_ms": 18121,
+  "request_id": "req_aef82553ce00ac27a59c93aa"
+ },
+ {
+  "q": "Should we move billing off Stripe before",
+  "effort": "low",
+  "level": "Premium",
+  "route": "Multi-model collaboration",
+  "perspectives": 3,
+  "out_tok": 49,
+  "in_tok": 17,
+  "credits": 0.000213,
+  "latency_ms": 15077,
+  "request_id": "req_e72fa085c0ca0d4d3ce57b60"
+ },
+ {
+  "q": "Should we move billing off Stripe before",
+  "effort": "high",
+  "level": "Premium",
+  "route": "Multi-model collaboration",
+  "perspectives": 3,
+  "out_tok": 45,
+  "in_tok": 17,
+  "credits": 0.000197,
+  "latency_ms": 21619,
+  "request_id": "req_3009bdcf10330980bfc1b955"
+ }
+]

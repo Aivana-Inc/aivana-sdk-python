@@ -1,0 +1,27 @@
+aivana 0.3.1 | live base: https://dev-developers.aivana.ai | key: set
+...................x........................................x........... [ 41%]
+.................................xX.x........x..x.x..............x...... [ 82%]
+...........x.........xxxxxx...x                                          [100%]
+=================================== XPASSES ====================================
+=========================== short test summary info ============================
+XFAIL tests/test_cli.py::test_json_unparseable_200 - F15: a 200 body missing a required field (e.g. intent) raises pydantic.ValidationError, which escapes the CLI as a raw Python traceback; it is not an AivanaError either
+XFAIL tests/test_cli.py::test_live_default_base - F2: refusing ai_test_ keys on api.aivana.ai is by design (Docs > API Keys), but the CLI says 'Invalid or expired API key. Generate a new key' and suggests `export AIVANA_API_KEY=ai_live_...`
+XFAIL tests/test_live.py::test_default_base - F2: refusing ai_test_ keys on api.aivana.ai is by design (Docs > API Keys), but the 401 says 'Invalid or expired API key. Generate a new key', not that the key is from another environment
+XFAIL tests/test_live.py::test_max_tokens - F11: max_tokens=40 returned 67 output tokens (billed) with finish_reason=stop on Oct 5; docs call max_tokens a ceiling
+XFAIL tests/test_live.py::test_json_schema_usage - F13: Oct 5 json_schema success returned an answer with usage.output_tokens=0 (credits = input only) - metering or reporting gap
+XFAIL tests/test_live.py::test_effort_low_is_a_ceiling - F16: on 2026-10-20 effort=low and effort=high gave the same intelligence_level (Premium), route and 3 perspectives on two decision questions; low did not bound anything
+XFAIL tests/test_live.py::test_stream_undocumented_events - F14: every stream also carries undocumented `route` and `stage` events (and `model` on done), even with intelligence_trace off
+XFAIL tests/test_offline.py::test_docs_configure_snippet - F9: docs snippet os.environ['AIVANA_API_KEY'] raises KeyError when unset; SDK already reads the env var itself
+XFAIL tests/test_offline.py::test_stream_error_event - F1: a mid-stream error event is yielded as an ordinary chunk; the documented `for chunk: print(chunk.delta)` loop ends silently with a partial answer
+XFAIL tests/test_offline.py::test_422_generic - F3: a 422 whose code is not on the SDK's allowlist (e.g. a generic validation error) falls through to base AivanaError
+XFAIL tests/test_offline.py::test_request_id_header - F4: the live 401 body has no request_id and the SDK does not read the X-Request-Id header, so err.request_id is None
+XFAIL tests/test_offline.py::test_network_error - F5: httpx.ConnectError escapes unwrapped; `except AivanaError` misses it
+XFAIL tests/test_offline.py::test_timeout - F5: httpx.ReadTimeout escapes unwrapped
+XFAIL tests/test_offline.py::test_retry_after - F6: retry_after_ms / Retry-After are dropped; no attribute on the error
+XFAIL tests/test_offline.py::test_504 - F7: 504 (and 413/500/503) become base AivanaError; only 502 is UpstreamError, so the docs' `except (RateLimitError, UpstreamError)` retry misses 504
+XFAIL tests/test_offline.py::test_chat_failed_send - F8: the user turn is appended before the request; on error it stays, so retrying send() sends the question twice
+XPASS tests/test_live.py::test_default_base_request_id - F4: the production host's 401 body has no request_id and the SDK does not fall back to the X-Request-Id header (dev host does include it)
+158 passed, 16 xfailed, 1 xpassed in 345.82s (0:05:45)
+
+Matrix:   /Users/aaronzheng/Downloads/Aivana/sdk-validation-python/results/matrix.md
+Evidence: /Users/aaronzheng/Downloads/Aivana/sdk-validation-python/results/evidence.jsonl
