@@ -23,10 +23,21 @@ the pull request once CI is green.
 
 Then **Publish release**.
 
+## 2b. The production smoke test gates the release
+
+Before anything is published, the publish workflow installs the built wheel the way a developer would and uses it
+against the real API (`smoke/`, `.github/workflows/smoke.yml`). If it fails, nothing is published, and there is no way to
+skip it: fix the cause, then **Re-run failed jobs** (or release the next patch version if the fix needs a code change).
+
+You can run it by hand any time, for example before cutting a release: **Actions → Production smoke test → Run workflow**.
+It needs the `production-smoke` environment and its key set up once; [smoke/README.md](smoke/README.md) has the steps,
+and the environment's required reviewer means a release waits for an approval click before the smoke test runs.
+
 ## 3. Watch the run
 
 Actions → **Publish to PyPI**. The job:
 
+0. runs the production smoke test (above) and stops if it fails;
 1. runs the tests;
 2. checks that the tag matches the version in `pyproject.toml`, and stops
    before building anything if it doesn't;
