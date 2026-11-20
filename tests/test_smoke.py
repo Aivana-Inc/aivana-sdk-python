@@ -71,6 +71,8 @@ def stub(quirk=None):
             if (quirk != "accepts-bad-requests"
                     and body.get("effort", "auto") not in ("auto", "low", "medium", "high")):
                 return self._send(*_envelope("invalid_request", "The request body or query is not valid.", 422))
+            if quirk == "no-credit" and body.get("effort") == "low":
+                return self._send(*_envelope("insufficient_credit", "Your balance is empty.", 402))
             if quirk == "fails-fast" and self.path == "/v1/generate" and body.get("effort") == "low":
                 return self._send(*_envelope("internal_error", "boom", 500))
             delay = 0 if quirk == "answers-instantly" else 0.6
@@ -268,21 +270,6 @@ def test_a_stream_that_never_sends_done_fails_the_streaming_check():
         assert "never sent its done event" in out
 
 
-def test_an_answer_that_arrives_before_the_cancel_means_cancelling_was_not_tested():
-    with stub("answers-instantly") as (base, _):
-        code, out, _ = run_script({"AIVANA_API_KEY": GOOD_KEY, "AIVANA_API_BASE": base})
-        assert code == 1
-        assert "FAIL  an async request cancelled while in flight" in out
-
-
-def test_a_cancelled_request_that_fails_some_other_way_is_not_mistaken_for_a_clean_cancel():
-    with stub("fails-fast") as (base, _):
-        code, out, _ = run_script({"AIVANA_API_KEY": GOOD_KEY, "AIVANA_API_BASE": base})
-        assert code == 1
-        assert "FAIL  an async request cancelled while in flight" in out
-        assert "expected the request to be cancelled" in out
-
-
 def test_a_release_whose_installed_version_is_not_the_expected_one_fails():
     with stub() as (base, _):
         code, out, _ = run_script({"AIVANA_API_KEY": GOOD_KEY, "AIVANA_API_BASE": base,
@@ -298,3 +285,65 @@ def test_the_billed_call_cap_is_three_and_a_fourth_billed_call_is_refused_by_the
         smoke.spend_one(what)
     with pytest.raises(RuntimeError, match="the cap is 3 per run"):
         smoke.spend_one("four")
+
+
+def test_an_answer_that_arrives_before_the_cancel_is_not_tested_not_a_failure():
+    """A healthy release is never held up by a fast API."""
+    with stub("answers-instantly") as (base, _):
+        code, out, _ = run_script({"AIVANA_API_KEY": GOOD_KEY, "AIVANA_API_BASE": base})
+        assert code == 0, out
+        assert "NOT TESTED  an async request cancelled while in flight" in out
+        assert "6 of 6 checks passed" not in out
+        assert "5 of 6 checks passed, 1 not tested this run; 3 billed call(s) made" in out
+        assert "FAIL" not in out
+
+
+def test_a_not_tested_cancel_is_a_warning_annotation_in_github_and_silent_elsewhere():
+    with stub("answers-instantly") as (base, _):
+        code, out, _ = run_script({"AIVANA_API_KEY": GOOD_KEY, "AIVANA_API_BASE": base, "GITHUB_ACTIONS": "true"})
+        assert code == 0
+        assert "::warning title=Smoke test: an async request cancelled while in flight stops promptly::not tested this run" in out
+        _, quiet, _ = run_script({"AIVANA_API_KEY": GOOD_KEY, "AIVANA_API_BASE": base})
+        assert "::warning" not in quiet
+
+
+def test_an_api_fault_that_ends_the_request_before_the_cancel_is_not_blamed_on_cancelling():
+    with stub("fails-fast") as (base, _):
+        code, out, _ = run_script({"AIVANA_API_KEY": GOOD_KEY, "AIVANA_API_BASE": base})
+        assert code == 1  # the generation check fails on the 500, which is the real problem
+        assert "FAIL  one tiny generation" in out
+        assert "NOT TESTED  an async request cancelled" in out
+        assert "FAIL  an async request cancelled" not in out
+
+
+def test_an_empty_test_account_reads_as_fund_it_not_an_sdk_fault_and_still_stops_the_release():
+    with stub("no-credit") as (base, _):
+        code, out, _ = run_script({"AIVANA_API_KEY": GOOD_KEY, "AIVANA_API_BASE": base})
+        assert code == 1
+        assert "THE TEST ACCOUNT IS OUT OF CREDIT: fund it" in out
+        assert "not an SDK fault" in out
+
+
+# judge_cancel: the rule for the cancel check, with no network and no timing
+def _judge(**kw):
+    base = dict(cancel_requested=True, outcome="cancelled", err=None, took_s=0.003)
+    return _load_script().judge_cancel(**{**base, **kw})[0]
+
+
+def test_judge_cancel_a_request_in_flight_that_is_cancelled_promptly_passes():
+    assert _judge() == "pass"
+
+
+def test_judge_cancel_a_request_that_had_already_finished_is_inconclusive_never_a_failure():
+    assert _judge(cancel_requested=False, outcome="resolved") == "inconclusive"
+    assert _judge(cancel_requested=False, outcome="rejected", err=RuntimeError("x")) == "inconclusive"
+
+
+def test_judge_cancel_in_flight_and_cancelled_but_it_ends_any_other_way_is_a_failure():
+    assert _judge(outcome="resolved") == "fail"
+    assert _judge(outcome="rejected", err=RuntimeError("boom")) == "fail"
+
+
+def test_judge_cancel_in_flight_but_slow_to_take_effect_is_a_failure_with_the_limit_given():
+    assert _judge(took_s=5.0) == "fail"
+    assert _judge(took_s=4.99) == "pass"

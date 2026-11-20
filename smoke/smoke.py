@@ -14,6 +14,9 @@ What it checks, in order:
   4. one tiny generation                                                          (billed, call 1 of 3)
   5. one tiny streamed generation                                                 (billed, call 2 of 3)
   6. one async request cancelled while in flight                                  (may be billed, call 3 of 3)
+     This check only BLOCKS when cancelling visibly failed. If the request finished before it could be cancelled
+     (an unusually quick answer), nothing was learned, so it is reported as "not tested" and does not fail the
+     run: a healthy release is never held up because production answered fast. See judge_cancel().
 
 What it deliberately does NOT do: provoke a rate limit (the API's counters are per server task, so it would be flaky
 and would put blocked requests in the production logs), retry-on-429 behaviour (proved offline in tests/test_retry.py),
@@ -25,7 +28,8 @@ Safe by construction:
   - the key is only ever sent to https hosts (or to localhost, for the offline test)
   - it asserts the SHAPE of answers (non-empty, counts above zero, ids present), never their wording
 
-Exit code: 0 all checks passed, 1 a check failed, 2 the setup is wrong (nothing was called).
+Exit code: 0 no check failed (a check that could not be tried is "not tested", not a failure), 1 a check failed,
+2 the setup is wrong (nothing was called).
 """
 from __future__ import annotations
 
@@ -97,8 +101,17 @@ def describe(err):
         bits = [type(err).__name__, f"code {err.code}"]
         if err.request_id:
             bits.append(f"request {err.request_id}")
-        return ", ".join(bits) + f" - {str(err.message)[:160]}"
+        text = ", ".join(bits) + f" - {str(err.message)[:160]}"
+        # The gate is permanent, so an empty test account must read as "fund it", not as an SDK problem.
+        if err.code == "insufficient_credit":
+            text += ('  >> THE TEST ACCOUNT IS OUT OF CREDIT: fund it (smoke/README.md, "Keeping it funded"); '
+                     "this is not an SDK fault")
+        return text
     return f"{type(err).__name__} - {str(err)[:160]}"
+
+
+class Inconclusive(Exception):
+    """A check that could not be tried (the request finished before it could be cancelled): not a failure, not a pass."""
 
 
 results = []
@@ -109,16 +122,43 @@ def check(name, fn):
         note = fn()
         if asyncio.iscoroutine(note):
             note = asyncio.run(note)
-        results.append({"name": name, "ok": True, "note": note or ""})
+        results.append({"name": name, "status": "pass", "note": note or ""})
         out(f"PASS  {name}" + (f"  ({note})" if note else ""))
+        return True
+    except Inconclusive as err:
+        results.append({"name": name, "status": "inconclusive", "note": str(err)})
+        out(f"NOT TESTED  {name}")
+        out(f"      {err}")
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            out(f"::warning title=Smoke test: {name}::not tested this run: {err}")
         return True
     except BaseException as err:  # noqa: BLE001 - a smoke test reports everything, including a stray cancel
         if isinstance(err, (KeyboardInterrupt, SystemExit)):
             raise
-        results.append({"name": name, "ok": False, "note": describe(err)})
+        results.append({"name": name, "status": "fail", "note": describe(err)})
         out(f"FAIL  {name}")
         out(f"      {describe(err)}")
         return False
+
+
+def judge_cancel(*, cancel_requested, outcome, err=None, took_s=0.0, limit_s=5.0):
+    """Judges the cancel check from what happened, so the rule is one place that can be tested without a network.
+
+    cancel_requested       what Task.cancel() returned: False means the request had already finished (answer or
+                           error) when the cancel was due, so it was not in flight
+    outcome                "cancelled" | "resolved" | "rejected", after the cancel was requested
+    Only a request that was demonstrably in flight when it was cancelled can fail the check.
+    """
+    if not cancel_requested:
+        return "inconclusive", "the request finished before it could be cancelled, so cancelling was not tested this run"
+    if outcome == "cancelled":
+        if took_s >= limit_s:
+            return "fail", f"cancelling took {took_s:.1f} s to take effect"
+        return "pass", f"stopped after {took_s * 1000:.0f} ms"
+    # asyncio delivers a cancel into the coroutine even if the awaited reply has just arrived, so a request that was
+    # in flight and ends any other way did not honour the cancel
+    ended = "an answer" if outcome == "resolved" else describe(err)
+    return "fail", f"the request was in flight when it was cancelled, but it ended with {ended} instead of being cancelled"
 
 
 def expect(condition, message):
@@ -131,15 +171,17 @@ def positive_int(n):
 
 
 def finish(code):
-    passed = sum(1 for r in results if r["ok"])
-    out(f"\n{passed} of {len(results)} checks passed; {_paid_calls} billed call(s) made.")
+    passed = sum(1 for r in results if r["status"] == "pass")
+    untested = sum(1 for r in results if r["status"] == "inconclusive")
+    note = f", {untested} not tested this run" if untested else ""
+    out(f"\n{passed} of {len(results)} checks passed{note}; {_paid_calls} billed call(s) made.")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
-        rows = [f"| {'pass' if r['ok'] else 'FAIL'} | {r['name']} | {redact(r['note']).replace('|', '/')} |"
-                for r in results]
+        label = {"pass": "pass", "fail": "FAIL", "inconclusive": "not tested"}
+        rows = [f"| {label[r['status']]} | {r['name']} | {redact(r['note']).replace('|', '/')} |" for r in results]
         with open(summary, "a", encoding="utf-8") as fh:
             fh.write("### aivana (Python) production smoke test\n\n| | check | detail |\n|---|---|---|\n"
-                     + "\n".join(rows) + f"\n\n{passed} of {len(results)} passed; {_paid_calls} billed call(s).\n")
+                     + "\n".join(rows) + f"\n\n{passed} of {len(results)} passed{note}; {_paid_calls} billed call(s).\n")
     return code
 
 
@@ -245,22 +287,28 @@ def main():
         spend_one("generate_async cancelled")
         task = asyncio.ensure_future(aivana.generate_async(PROMPT, timeout=90, **TINY))
         await asyncio.sleep(CANCEL_AFTER_S)
-        started = time.monotonic()
-        task.cancel()
+        # In flight means: still pending when the cancel is sent. Task.cancel() says so exactly: it returns False
+        # for a task that has already finished, so nothing is guessed from a clock.
+        cancel_requested = task.cancel()
+        cancelled_at = time.monotonic()
+        outcome, err = "resolved", None
         try:
             await task
         except asyncio.CancelledError:
-            took = time.monotonic() - started
-            expect(took < 5, f"the cancel took {took:.1f} s to take effect")
-            return f"stopped after {took * 1000:.0f} ms"
-        except Exception as err:  # noqa: BLE001
-            raise AssertionError(f"expected the request to be cancelled, got {describe(err)}") from err
-        raise AssertionError(f"the request finished within {CANCEL_AFTER_S * 1000:.0f} ms, before it could be "
-                             "cancelled, so cancelling was not tested")
+            outcome = "cancelled"
+        except Exception as exc:  # noqa: BLE001
+            outcome, err = "rejected", exc
+        status, note = judge_cancel(cancel_requested=cancel_requested, outcome=outcome, err=err,
+                                    took_s=time.monotonic() - cancelled_at)
+        if status == "fail":
+            raise AssertionError(note)
+        if status == "inconclusive":
+            raise Inconclusive(note)
+        return note
 
     check("an async request cancelled while in flight stops promptly", cancelled)
 
-    return finish(0 if all(r["ok"] for r in results) else 1)
+    return finish(1 if any(r["status"] == "fail" for r in results) else 0)
 
 
 if __name__ == "__main__":

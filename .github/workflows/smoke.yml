@@ -22,7 +22,8 @@ name: Production smoke test
 #   - only one run at a time (the concurrency group), so two runs never spend the test wallet together.
 #
 # The environment's secrets (see smoke/README.md):
-#   AIVANA_API_KEY   a key for a dedicated test account holding a small balance, with the default scopes
+#   AIVANA_API_KEY   a key for a dedicated, permanent test account that is kept funded (smoke/README.md: funding and rotation),
+#                    with the default scopes
 
 on:
   workflow_dispatch:
