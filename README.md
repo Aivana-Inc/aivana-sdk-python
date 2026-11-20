@@ -605,8 +605,32 @@ from aivana import RateLimitError
 try:
     aivana.generate("...")
 except RateLimitError as err:
-    backoff(err)
+    # err.retry_after: the seconds the API said to wait, or None
+    print(f"still limited; try again in {err.retry_after or 'a minute or so'}s")
 ```
+
+### Rate limits and retries
+
+The SDK asks again for you after a **per-minute rate limit**: up to 2 more tries, waiting
+as long as the API's `Retry-After` says (plus a moment of random spread, so a group of
+developers behind the same office or campus network, who share one per-address allowance,
+don't all return in the same second). If the wait would be longer than 30 seconds, it
+doesn't wait: you get the `RateLimitError` straight away, with `retry_after` set.
+
+**Nothing else is retried automatically**, on purpose. A quota or spend limit (also a 429,
+but with its own `code`), a timeout, a server error or a dropped connection may already have
+been billed, and asking again could bill it twice. Those reach you as errors; whether to
+repeat the call is your decision.
+
+```python
+aivana.max_retries = 4          # default 2; 0 turns retries off
+aivana.max_retry_wait = 60      # default 30 (seconds): the longest single wait
+aivana.generate("...", max_retries=0)   # one call's own setting wins
+aivana.Chat(max_retries=0)              # so does a Chat's
+```
+
+Retries apply to `generate`, `generate_async`, `generate_stream`, streaming and `Chat`
+(a streamed answer is only retried before its first byte, never in the middle of one).
 
 ## License
 

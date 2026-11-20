@@ -1,13 +1,18 @@
 """HTTP client. The SDK has zero knowledge of models/providers/modes."""
 from __future__ import annotations
+import asyncio
 import json
 import os
+import random
+import time
 from typing import Any, AsyncIterator, Iterator, Optional
 
 import httpx
 
 from aivana.envelopes import GenerateResponse, StreamChunk
-from aivana.exceptions import AivanaError, InvalidRequestError, from_error_payload
+from aivana.exceptions import (
+    AivanaError, InvalidRequestError, RateLimitError, from_error_payload, parse_retry_after,
+)
 
 
 # Module-level config (Stripe-style)
@@ -20,6 +25,69 @@ api_key: Optional[str] = None
 # set_api_base(). Local development is the case that should have to say so, not
 # the default.
 api_base: str = "https://api.aivana.ai"
+
+
+# Automatic retries. Only a per-minute rate limit is ever retried (see _retry_delay): the API
+# refuses those before it does any work, so asking again cannot bill twice. Anything else, a
+# timeout, a 5xx, a dropped connection, may have been billed, and is never repeated behind the
+# caller's back. Same defaults as @aivana/sdk (maxRetries 2, maxRetryWaitMs 30000).
+max_retries: int = 2
+max_retry_wait: float = 30.0
+
+
+def _check_retries(value: Any, name: str = "max_retries") -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise InvalidRequestError(f"{name} must be a whole number, 0 or more.", code="invalid_request")
+    return value
+
+
+def set_max_retries(n: int) -> None:
+    """How many times to ask again after a per-minute rate limit (default 2; 0 turns it off)."""
+    global max_retries
+    max_retries = _check_retries(n)
+
+
+def set_max_retry_wait(seconds: float) -> None:
+    """The longest single wait before such a retry, in seconds (default 30). A longer wait is not
+    taken: the RateLimitError is raised instead, with `retry_after` set."""
+    global max_retry_wait
+    if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or seconds != seconds \
+            or seconds in (float("inf"), float("-inf")) or seconds < 0:
+        raise InvalidRequestError("max_retry_wait must be a number of seconds, 0 or more.",
+                                  code="invalid_request")
+    max_retry_wait = float(seconds)
+
+
+def _retry_delay(exc: Exception, attempt: int, retries: int) -> Optional[float]:
+    """Seconds to wait before asking again, or None for "do not retry".
+
+    Only a per-minute rate limit qualifies. A quota or spend limit is also a 429, but it clears in
+    hours or at the next period, so retrying it is wasted time (its own code says which it is).
+    A timeout, a 5xx or a dropped connection is never retried: the work may have been done and
+    billed, and asking again could bill it twice."""
+    if not isinstance(exc, RateLimitError) or exc.code != "rate_limit_exceeded":
+        return None
+    if attempt >= retries:
+        return None
+    base = exc.retry_after if exc.retry_after is not None else min(2.0 ** attempt, max_retry_wait)
+    if base > max_retry_wait:
+        return None
+    # Everyone behind one address is told the same wait, so spread them a little: a room of
+    # developers retrying in the same instant would hit the limit together again.
+    jitter = random.random() * min(base * 0.25, 1.0)
+    return min(base + jitter, max_retry_wait)
+
+
+def _sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+async def _asleep(seconds: float) -> None:
+    await asyncio.sleep(seconds)
+
+
+def _retries_for(override: Optional[int]) -> int:
+    return max_retries if override is None else _check_retries(override)
 
 
 def set_api_key(key: str) -> None:
@@ -61,7 +129,41 @@ def _check(resp: httpx.Response) -> None:
             payload = resp.json()
         except Exception:
             payload = {"error": {"message": resp.text or "request failed"}}
-        raise from_error_payload(payload, resp.status_code)
+        raise from_error_payload(payload, resp.status_code,
+                                 parse_retry_after(resp.headers.get("retry-after")))
+
+
+def _post_checked(path: str, body: dict, timeout: float, retries: int) -> httpx.Response:
+    """POST, check, and ask again after a per-minute rate limit (and nothing else)."""
+    attempt = 0
+    while True:
+        with httpx.Client(timeout=timeout, base_url=api_base) as client:
+            resp = client.post(path, headers=_headers(), json=body)
+        try:
+            _check(resp)
+            return resp
+        except RateLimitError as exc:
+            delay = _retry_delay(exc, attempt, retries)
+            if delay is None:
+                raise
+        _sleep(delay)
+        attempt += 1
+
+
+async def _apost_checked(path: str, body: dict, timeout: float, retries: int) -> httpx.Response:
+    attempt = 0
+    while True:
+        async with httpx.AsyncClient(timeout=timeout, base_url=api_base) as client:
+            resp = await client.post(path, headers=_headers(), json=body)
+        try:
+            _check(resp)
+            return resp
+        except RateLimitError as exc:
+            delay = _retry_delay(exc, attempt, retries)
+            if delay is None:
+                raise
+        await _asleep(delay)
+        attempt += 1
 
 
 def _json(resp: httpx.Response) -> Any:
@@ -304,9 +406,13 @@ def generate(
     *,
     stream: bool = False,
     timeout: float = 240.0,
+    max_retries: Optional[int] = None,
     **options: Any,
 ) -> "GenerateResponse | Iterator[StreamChunk]":
     """Sync generate. Returns GenerateResponse, or an Iterator[StreamChunk] if stream=True.
+
+    max_retries: how many times to ask again after a per-minute rate limit, for this call only
+    (default: the module setting, 2; 0 turns it off). Nothing else is retried automatically.
 
     Options (all optional):
     """ + _OPTS + """
@@ -314,64 +420,88 @@ def generate(
     `pending_action` (from `resp.pending_action`) on each follow-up call.
     """
     body = _body(prompt, **options)
+    retries = _retries_for(max_retries)
     if stream:
         _refuse_strict_stream(body)
-        return _sync_stream(body, timeout)
-    with httpx.Client(timeout=timeout, base_url=api_base) as client:
-        resp = client.post("/v1/generate", headers=_headers(), json=body)
-        _check(resp)
-        return GenerateResponse(**_json(resp))
+        return _sync_stream(body, timeout, retries)
+    return GenerateResponse(**_json(_post_checked("/v1/generate", body, timeout, retries)))
 
 
-def _sync_stream(body: dict, timeout: float) -> Iterator[StreamChunk]:
-    with httpx.Client(timeout=timeout, base_url=api_base) as client:
-        with client.stream("POST", "/v1/generate:stream",
-                           headers=_headers(), json=body) as resp:
-            if resp.status_code >= 400:
-                # A streamed response has no body until it is read, and _check
-                # parses the error envelope out of the body. Without this, every
-                # HTTP error on the streaming path — a bad key, a rate limit, an
-                # empty balance — surfaced as httpx.ResponseNotRead instead of the
-                # AuthError / RateLimitError / ... the caller is catching.
-                resp.read()
-            _check(resp)
-            for chunk in _iter_sse(resp.iter_lines()):
-                yield chunk
+def _sync_stream(body: dict, timeout: float, retries: int) -> Iterator[StreamChunk]:
+    attempt = 0
+    while True:
+        delay = None
+        with httpx.Client(timeout=timeout, base_url=api_base) as client:
+            with client.stream("POST", "/v1/generate:stream",
+                               headers=_headers(), json=body) as resp:
+                if resp.status_code >= 400:
+                    # A streamed response has no body until it is read, and _check
+                    # parses the error envelope out of the body. Without this, every
+                    # HTTP error on the streaming path — a bad key, a rate limit, an
+                    # empty balance — surfaced as httpx.ResponseNotRead instead of the
+                    # AuthError / RateLimitError / ... the caller is catching.
+                    resp.read()
+                try:
+                    _check(resp)
+                except RateLimitError as exc:
+                    # Before the first byte of an answer, so nothing has been done: safe to ask again.
+                    delay = _retry_delay(exc, attempt, retries)
+                    if delay is None:
+                        raise
+                else:
+                    for chunk in _iter_sse(resp.iter_lines()):
+                        yield chunk
+                    return
+        _sleep(delay)
+        attempt += 1
 
 
 async def generate_async(
     prompt: Optional[str] = None,
     *,
     timeout: float = 240.0,
+    max_retries: Optional[int] = None,
     **options: Any,
 ) -> GenerateResponse:
     """Async generate. Same options as `generate`.
     """ + _OPTS
-    async with httpx.AsyncClient(timeout=timeout, base_url=api_base) as client:
-        resp = await client.post("/v1/generate", headers=_headers(),
-                                 json=_body(prompt, **options))
-        _check(resp)
-        return GenerateResponse(**_json(resp))
+    body = _body(prompt, **options)
+    retries = _retries_for(max_retries)
+    return GenerateResponse(**_json(await _apost_checked("/v1/generate", body, timeout, retries)))
 
 
 async def generate_stream(
     prompt: Optional[str] = None,
     *,
     timeout: float = 240.0,
+    max_retries: Optional[int] = None,
     **options: Any,
 ) -> AsyncIterator[StreamChunk]:
     """Async streaming generate. Same options as `generate`.
     """ + _OPTS
     body = _body(prompt, **options)
     _refuse_strict_stream(body)
-    async with httpx.AsyncClient(timeout=timeout, base_url=api_base) as client:
-        async with client.stream("POST", "/v1/generate:stream",
-                                 headers=_headers(), json=body) as resp:
-            if resp.status_code >= 400:
-                await resp.aread()          # see _sync_stream
-            _check(resp)
-            async for chunk in _aiter_sse(resp.aiter_lines()):
-                yield chunk
+    retries = _retries_for(max_retries)
+    attempt = 0
+    while True:
+        delay = None
+        async with httpx.AsyncClient(timeout=timeout, base_url=api_base) as client:
+            async with client.stream("POST", "/v1/generate:stream",
+                                     headers=_headers(), json=body) as resp:
+                if resp.status_code >= 400:
+                    await resp.aread()          # see _sync_stream
+                try:
+                    _check(resp)
+                except RateLimitError as exc:
+                    delay = _retry_delay(exc, attempt, retries)   # before any answer: safe to ask again
+                    if delay is None:
+                        raise
+                else:
+                    async for chunk in _aiter_sse(resp.aiter_lines()):
+                        yield chunk
+                    return
+        await _asleep(delay)
+        attempt += 1
 
 
 class Chat:
@@ -386,8 +516,9 @@ class Chat:
         print(chat.send("Yes, give me an example").answer)
     """
 
-    def __init__(self, *, timeout: float = 240.0, **options: Any):
+    def __init__(self, *, timeout: float = 240.0, max_retries: Optional[int] = None, **options: Any):
         self.timeout = timeout
+        self.max_retries = max_retries
         self.options = options
         self.messages: list[dict] = []
         self._last_intent: Optional[str] = None
@@ -407,9 +538,7 @@ class Chat:
             pending_action=self._pending_action,
             **opts,
         )
-        with httpx.Client(timeout=self.timeout, base_url=api_base) as client:
-            resp = client.post("/v1/generate", headers=_headers(), json=body)
-            _check(resp)
+        resp = _post_checked("/v1/generate", body, self.timeout, _retries_for(self.max_retries))
         result = GenerateResponse(**_json(resp))
         self.messages.append({"role": "assistant", "content": result.answer})
         self._last_intent = result.intent.name if result.intent else None

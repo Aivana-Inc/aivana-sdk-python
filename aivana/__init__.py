@@ -21,6 +21,8 @@ from aivana.client import (
     generate_stream,
     set_api_base,
     set_api_key,
+    set_max_retries,
+    set_max_retry_wait,
 )
 from aivana.envelopes import GenerateResponse, Notice, StreamChunk
 from aivana.exceptions import (
@@ -40,7 +42,7 @@ from aivana.exceptions import (
 # failed with a 401 the caller had no way to explain. Module-level config is the
 # documented interface (Stripe-style), so reads go through __getattr__ below and
 # writes through _Config.__setattr__ — both straight to the client module.
-_CONFIG = ("api_key", "api_base")
+_CONFIG = ("api_key", "api_base", "max_retries", "max_retry_wait")
 
 
 def __getattr__(name: str):
@@ -57,8 +59,12 @@ class _Config(_ModuleType):
             # normalisation whichever way it is set.
             if name == "api_key":
                 _client.api_key = value
-            else:
+            elif name == "api_base":
                 _client.set_api_base(value)
+            elif name == "max_retries":
+                _client.set_max_retries(value)       # validated: a count, 0 or more
+            else:
+                _client.set_max_retry_wait(value)    # validated: seconds, 0 or more
             return
         super().__setattr__(name, value)
 
@@ -75,8 +81,12 @@ except Exception:                       # running from a source checkout
 __all__ = [
     "api_base",
     "api_key",
+    "max_retries",
+    "max_retry_wait",
     "set_api_base",
     "set_api_key",
+    "set_max_retries",
+    "set_max_retry_wait",
     "generate",
     "generate_async",
     "generate_stream",
