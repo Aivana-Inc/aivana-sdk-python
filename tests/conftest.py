@@ -26,6 +26,8 @@ def api(monkeypatch):
                         lambda **kw: real(transport=httpx.MockTransport(fake.handle), **kw))
     # The CLI writes the key and base into the SDK's module-level config; these
     # restore both afterwards so no other test inherits them.
+    # A rate-limit retry waits; the CLI suites are about what the command does, so they do not sleep.
+    monkeypatch.setattr(sdk, "_sleep", lambda seconds: None)
     monkeypatch.setattr(sdk, "api_key", None)
     monkeypatch.setattr(sdk, "api_base", sdk.api_base)
     monkeypatch.setenv("AIVANA_API_KEY", TEST_KEY)
