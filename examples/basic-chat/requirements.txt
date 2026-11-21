@@ -1,0 +1,7 @@
+# Exact versions, all tested together (see tests/test_stop.py, which fails if an upgrade breaks Stop).
+# Starlette is pinned too, even though FastAPI installs it: how a hang-up cancels a streaming answer depends on it.
+aivana==0.4.0
+fastapi==0.165.0
+starlette==1.10.0
+uvicorn==0.54.0
+python-dotenv==1.2.4

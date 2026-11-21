@@ -1,0 +1,13 @@
+# Tool settings only: this folder is an app to copy and run, not a package to install.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = ["error::pytest.PytestUnraisableExceptionWarning"]
+
+[tool.ruff]
+line-length = 140
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501", "B008", "UP038"]  # UP038 (isinstance with X | Y) is deprecated by Ruff itself

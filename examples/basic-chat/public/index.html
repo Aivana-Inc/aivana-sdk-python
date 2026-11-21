@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Basic AI Chat · Aivana</title>
+    <link rel="icon" href="/assets/aivana-sparkle.avif" type="image/avif" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <a class="brand" href="https://aivana.ai/" target="_blank" rel="noreferrer">
+          <img src="/assets/aivana-logo.avif" alt="Aivana" width="112" height="32" />
+          <span class="tag">Chat starter</span>
+        </a>
+        <nav class="header-actions" aria-label="Chat controls">
+          <a class="docs" href="https://developers.aivana.ai/docs/quickstart" target="_blank" rel="noreferrer">Quickstart ↗</a>
+          <button id="theme" class="secondary" type="button" aria-label="Switch color theme">Theme</button>
+          <button id="reset" disabled class="new-chat" type="button"><span aria-hidden="true">＋</span> New chat</button>
+        </nav>
+      </header>
+      <main>
+        <h1 class="sr-only">Basic AI Chat, an Aivana chat starter</h1>
+        <section class="chat" aria-label="Basic AI Chat">
+          <div class="transcript-wrap">
+            <div id="transcript" class="transcript" role="log" aria-label="Conversation" aria-live="off">
+              <div id="empty" class="empty">
+                <p id="empty-kicker" class="kicker"><img src="/assets/aivana-sparkle.avif" alt="" width="20" height="20" /><span id="empty-kicker-text">Build with Aivana Intelligence</span></p>
+                <h2 id="empty-title" class="empty-title">Your AI chat starter is ready.</h2>
+                <p id="empty-text" class="lede">Experiment with intelligent responses, real-time streaming, and configurable AI behavior.</p>
+              </div>
+            </div>
+            <button id="jump" class="jump" type="button" hidden><span aria-hidden="true">↓</span> Jump to latest</button>
+          </div>
+          <p id="configuration-note" class="configuration-note" role="status" hidden></p>
+          <div class="dock">
+            <p id="status" class="status" role="status"></p>
+            <p id="error" class="error" role="alert" hidden></p>
+            <p id="announce" class="sr-only" role="status"></p>
+            <details id="settings" class="settings">
+              <summary><span>Settings</span><span id="settings-summary" class="settings-summary"></span></summary>
+              <div class="settings-panel">
+                <div class="settings-head"><h2>Intelligence settings</h2><span class="demo-badge">Demo controls</span></div>
+                <fieldset id="chat-settings" class="chat-settings">
+                  <legend class="sr-only">Intelligence settings</legend>
+                  <div class="field">
+                    <label for="effort">Intelligence effort</label>
+                    <select id="effort" aria-describedby="effort-help">
+                      <option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
+                    </select>
+                    <p id="effort-help" class="help"></p>
+                  </div>
+                  <div class="field">
+                    <label for="max-tokens">Answer length</label>
+                    <select id="max-tokens" aria-describedby="length-help">
+                      <option value="400">Short</option><option value="800" selected>Standard</option><option value="1600">Long</option>
+                    </select>
+                    <p id="length-help" class="help">Controls the maximum output tokens, not a guaranteed response length.</p>
+                  </div>
+                  <div class="toggle-row">
+                    <input id="web-search" type="checkbox" aria-describedby="search-help" />
+                    <div><label for="web-search">Web search</label><p id="search-help" class="help">Allow Aivana to retrieve current information.</p></div>
+                  </div>
+                </fieldset>
+                <div id="blueprint-settings" class="blueprint-settings" hidden>
+                  <p class="help">These come from the Agent Kit Blueprint you loaded. To change them, edit the Blueprint in Agent Kit and export it again.</p>
+                  <dl class="readonly-list">
+                    <div><dt>Intelligence effort</dt><dd id="bp-effort"></dd></div>
+                    <div><dt>Answer length</dt><dd id="bp-length"></dd></div>
+                    <div><dt>Web search</dt><dd id="bp-search"></dd></div>
+                  </dl>
+                </div>
+                <div class="toggle-row">
+                  <input id="streaming" type="checkbox" checked aria-describedby="stream-help" />
+                  <div><label for="streaming">Live streaming</label><p id="stream-help" class="help">Display the answer progressively as it arrives.</p></div>
+                </div>
+                <button id="settings-reset" class="link-button" type="button">Reset to defaults</button>
+              </div>
+            </details>
+            <form id="composer" class="composer">
+              <label class="sr-only" for="message">Message Aivana</label>
+              <textarea id="message" disabled name="message" rows="1" maxlength="4000" placeholder="Ask anything..." required aria-describedby="composer-hint"></textarea>
+              <button id="stop" class="stop" type="button" hidden aria-label="Stop generating" title="Stop generating"><span aria-hidden="true">■</span></button>
+              <button id="send" disabled class="primary" type="submit" aria-label="Send message"><span aria-hidden="true">↑</span></button>
+            </form>
+            <div id="suggestions" class="suggestions" role="group" aria-label="Ideas to get started">
+              <button class="suggestion" type="button" data-prompt="Explain how large language models work as if I were new to the subject. Use an analogy and a short list of the key ideas.">Explain a complex topic</button>
+              <button class="suggestion" type="button" data-prompt="Write a small JavaScript function that debounces another function. Show a short example of using it and explain how it works.">Generate sample code</button>
+              <button class="suggestion" type="button" data-prompt="Compare server-side rendering and client-side rendering for a content website. Use a table and end with a recommendation.">Compare two approaches</button>
+              <button class="suggestion" type="button" data-prompt="Build a six-week project plan for launching a small mobile app, with weekly milestones and the main risks.">Build a project plan</button>
+            </div>
+            <details id="session-details" class="session-details" hidden>
+              <summary>Session details</summary>
+              <dl id="session-list" class="readonly-list"></dl>
+              <p class="help">From the latest request. Token counts and response time as the API reported them.</p>
+            </details>
+            <p id="composer-hint" class="composer-hint">Enter for a new line · Ctrl / ⌘ + Enter to send</p>
+            <p class="footnote">API calls use account credit. New chat or a page reload clears this conversation.</p>
+          </div>
+        </section>
+      </main>
+      <footer>
+        <span class="powered"><span aria-hidden="true">✦</span> Powered by <strong>Aivana MMI API</strong></span>
+        <nav class="footer-links" aria-label="Developer resources">
+          <a href="https://github.com/Aivana-Inc/aivana-sdk-node/tree/main/examples/basic-chat" target="_blank" rel="noreferrer">View source code ↗</a>
+          <a href="https://developers.aivana.ai/docs/introduction" target="_blank" rel="noreferrer">API documentation ↗</a>
+        </nav>
+      </footer>
+    </div>
+  </body>
+</html>
