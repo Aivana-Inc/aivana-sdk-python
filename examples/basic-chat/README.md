@@ -326,7 +326,13 @@ python tools/sync_front_end.py /path/to/aivana-sdk-node/examples/basic-chat/publ
 ```
 
 To also compare against a checkout of the Node repository, set `AIVANA_NODE_STARTER_DIR` to its
-`examples/basic-chat` folder before running the tests. The server rewrites one link in `index.html` (the footer's
+`examples/basic-chat` folder before running the tests. The scheduled workflow `front-end-drift.yml` does this every day
+(it needs the repository secret `NODE_REPO_READ_TOKEN`, described at the top of that file, and fails rather than passes without it). The server rewrites one link in `index.html` (the footer's
 "View source code") to point at this starter, and refuses to start if that link is not found exactly once.
+
+**What is not tested here.** There is no browser test suite in this repository: the page's own behavior (typing
+animation, keyboard use, accessibility, scrolling) is checked in the Node repository's `tools/browser-checks`, and the
+page is identical. What belongs to this server, that Stop reaches the API call, is tested over real sockets in
+`tests/test_stop.py`. Neither replaces a person trying the page on real devices and browsers.
 
 Record the tested SDK version/environment and which checks were live versus fixture-based.

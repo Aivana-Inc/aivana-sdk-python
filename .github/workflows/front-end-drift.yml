@@ -1,0 +1,68 @@
+name: Basic chat page drift
+
+# The Basic AI Chat starters (this repo's examples/basic-chat and aivana-sdk-node's examples/basic-chat) share ONE page:
+# examples/basic-chat/public is a byte-for-byte copy of the Node starter's. tests/test_front_end.py already fails if a file
+# here is edited by hand. This workflow catches the other direction: the Node starter's page changing while this copy
+# stands still. It compares the two every day and on demand.
+#
+# When it fails: the Node page changed. Take the change with
+#   python tools/sync_front_end.py PATH_TO_aivana-sdk-node/examples/basic-chat/public
+# review the diff, and merge it.
+#
+# It FAILS CLOSED: with no token it fails with a message, rather than passing without having compared anything.
+#
+# One-time setup (a repository admin): Settings > Secrets and variables > Actions > New repository secret
+#   NODE_REPO_READ_TOKEN   a fine-grained personal access token with read-only "Contents" access to Aivana-Inc/aivana-sdk-node
+#                          and nothing else
+#
+# SAFETY. The job holds that token, so it never runs for a pull request (there is no pull_request trigger, and a workflow a
+# fork's pull request edits cannot start this one), it can only read repository contents, and it runs one at a time.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: front-end-drift
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    name: compare with the Node starter's page
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: The read token is configured
+        env:
+          TOKEN: ${{ secrets.NODE_REPO_READ_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::NODE_REPO_READ_TOKEN is not set, so nothing was compared. See the comment at the top of this workflow."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v5
+        with:
+          repository: Aivana-Inc/aivana-sdk-node
+          token: ${{ secrets.NODE_REPO_READ_TOKEN }}
+          path: node-starter
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r examples/basic-chat/requirements-dev.txt
+
+      - name: The two pages are identical
+        working-directory: examples/basic-chat
+        env:
+          AIVANA_NODE_STARTER_DIR: ${{ github.workspace }}/node-starter/examples/basic-chat
+        run: python -m pytest tests/test_front_end.py -q
