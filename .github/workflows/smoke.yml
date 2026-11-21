@@ -4,10 +4,12 @@ name: Production smoke test
 #
 # It builds the wheel, installs it into a fresh virtual environment (not the source tree) and runs
 # smoke/smoke.py from an empty folder against https://api.aivana.ai: free checks and three tiny billed
-# calls (smoke/smoke.py lists them and caps the billed ones). Two ways to start it:
+# calls (smoke/smoke.py lists them and caps the billed ones).
 #
-#   - by hand: Actions > Production smoke test > Run workflow, before cutting a release or the day before an event
-#   - as the gate in publish.yml: nothing is published to PyPI unless this passed on the commit being released
+# This workflow is the by-hand way to run it: Actions > Production smoke test > Run workflow, before cutting a release
+# or the day before an event. The release gate in publish.yml runs the same steps (the shared composite action
+# .github/actions/production-smoke), as a job of its own, because a reusable workflow does not receive this
+# environment's secret.
 #
 # SAFETY. The job holds a real production API key, so:
 #   - it never runs for a pull request (there is no pull_request trigger, and a workflow a fork's pull request
@@ -27,7 +29,6 @@ name: Production smoke test
 
 on:
   workflow_dispatch:
-  workflow_call:
 
 permissions:
   contents: read
@@ -47,34 +48,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Run the production smoke test
+        uses: ./.github/actions/production-smoke
         with:
-          python-version: "3.12"
-
-      # What gets tested is the built wheel, not the source: a module missing from the package, or a broken
-      # entry point, shows up here and nowhere in the in-repo tests.
-      - name: Build the wheel and install it into a fresh environment
-        run: |
-          pip install build
-          python -m build --wheel --outdir "$RUNNER_TEMP/wheel"
-          python -m venv "$RUNNER_TEMP/smoke-venv"
-          "$RUNNER_TEMP/smoke-venv/bin/pip" install --quiet "$RUNNER_TEMP"/wheel/aivana-*.whl
-          mkdir -p "$RUNNER_TEMP/smoke-run"
-          cp smoke/smoke.py "$RUNNER_TEMP/smoke-run/smoke.py"
-          echo "SMOKE_PY=$RUNNER_TEMP/smoke-venv/bin/python" >> "$GITHUB_ENV"
-          echo "SMOKE_DIR=$RUNNER_TEMP/smoke-run" >> "$GITHUB_ENV"
-          echo "EXPECTED_SDK_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")" >> "$GITHUB_ENV"
-
-      # Costs nothing and calls nothing: catches a missing key or a bad address before the real run.
-      - name: Check the setup (no calls)
-        working-directory: ${{ env.SMOKE_DIR }}
-        env:
-          AIVANA_API_KEY: ${{ secrets.AIVANA_API_KEY }}
-        run: ${{ env.SMOKE_PY }} smoke.py --dry-run
-
-      - name: Run the smoke test against production
-        working-directory: ${{ env.SMOKE_DIR }}
-        env:
-          AIVANA_API_KEY: ${{ secrets.AIVANA_API_KEY }}
-        run: ${{ env.SMOKE_PY }} smoke.py
+          api-key: ${{ secrets.AIVANA_API_KEY }}
