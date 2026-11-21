@@ -226,8 +226,11 @@ def main():
     def real_key_and_bad_request():
         aivana.set_api_key(API_KEY)
         try:
-            # refused by validation after the key is checked, before any work: free
-            aivana.generate(PROMPT, effort="not-a-real-effort", timeout=30)
+            # Refused by the API's request validation after the key is checked and before any work, so it is free. It
+            # must be a value the API really refuses: temperature is limited to 0..2. (An unknown `effort` is NOT
+            # refused: the API quietly treats it as "auto", which is how the first production run found that this
+            # check had assumed otherwise.)
+            aivana.generate(PROMPT, temperature=5, timeout=30)
         except AuthError as err:
             raise AssertionError("the real key was refused (AuthError)") from err
         except InvalidRequestError as err:
