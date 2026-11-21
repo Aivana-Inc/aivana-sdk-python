@@ -31,7 +31,16 @@ permissions:
   contents: read
 
 jobs:
+  # The gate: the built wheel is installed the way a developer would and used against the real API
+  # (smoke.yml says what it checks and how its key is protected). Nothing below runs unless it passes, and
+  # there is deliberately no way to skip it: a release waits until the smoke test passes, or until the problem
+  # it found is fixed. This job holds no `id-token` permission, so it cannot publish anything, and it is not passed
+  # the repository's secrets: its one secret is the production-smoke environment's own.
+  smoke:
+    uses: ./.github/workflows/smoke.yml
+
   publish:
+    needs: smoke
     runs-on: ubuntu-latest
     # The environment PyPI's trusted-publisher entry names. To make every
     # upload wait for a person's approval, add required reviewers to it:

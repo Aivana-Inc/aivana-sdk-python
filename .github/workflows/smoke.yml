@@ -1,0 +1,80 @@
+name: Production smoke test
+
+# Does the SDK, exactly as a developer would install it, work against the real Aivana API?
+#
+# It builds the wheel, installs it into a fresh virtual environment (not the source tree) and runs
+# smoke/smoke.py from an empty folder against https://api.aivana.ai: free checks and three tiny billed
+# calls (smoke/smoke.py lists them and caps the billed ones). Two ways to start it:
+#
+#   - by hand: Actions > Production smoke test > Run workflow, before cutting a release or the day before an event
+#   - as the gate in publish.yml: nothing is published to PyPI unless this passed on the commit being released
+#
+# SAFETY. The job holds a real production API key, so:
+#   - it never runs for a pull request (there is no pull_request trigger, and a workflow a fork's pull request
+#     edits cannot start this one);
+#   - the key lives in the `production-smoke` ENVIRONMENT, not in repository secrets. In Settings > Environments,
+#     add required reviewers and limit "Deployment branches and tags" to `main` and `v*`, so nobody can run this
+#     job, or read its secret, from an arbitrary branch;
+#   - the job has read-only access to the repository and NO `id-token` permission, so it cannot publish to PyPI or
+#     impersonate this repository anywhere;
+#   - the key is given to the steps that need it and is hidden in every log line (GitHub masks it, and the
+#     script redacts it again);
+#   - only one run at a time (the concurrency group), so two runs never spend the test wallet together.
+#
+# The environment's secrets (see smoke/README.md):
+#   AIVANA_API_KEY   a key for a dedicated, permanent test account that is kept funded (smoke/README.md: funding and rotation),
+#                    with the default scopes
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Production smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-smoke
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # What gets tested is the built wheel, not the source: a module missing from the package, or a broken
+      # entry point, shows up here and nowhere in the in-repo tests.
+      - name: Build the wheel and install it into a fresh environment
+        run: |
+          pip install build
+          python -m build --wheel --outdir "$RUNNER_TEMP/wheel"
+          python -m venv "$RUNNER_TEMP/smoke-venv"
+          "$RUNNER_TEMP/smoke-venv/bin/pip" install --quiet "$RUNNER_TEMP"/wheel/aivana-*.whl
+          mkdir -p "$RUNNER_TEMP/smoke-run"
+          cp smoke/smoke.py "$RUNNER_TEMP/smoke-run/smoke.py"
+          echo "SMOKE_PY=$RUNNER_TEMP/smoke-venv/bin/python" >> "$GITHUB_ENV"
+          echo "SMOKE_DIR=$RUNNER_TEMP/smoke-run" >> "$GITHUB_ENV"
+          echo "EXPECTED_SDK_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")" >> "$GITHUB_ENV"
+
+      # Costs nothing and calls nothing: catches a missing key or a bad address before the real run.
+      - name: Check the setup (no calls)
+        working-directory: ${{ env.SMOKE_DIR }}
+        env:
+          AIVANA_API_KEY: ${{ secrets.AIVANA_API_KEY }}
+        run: ${{ env.SMOKE_PY }} smoke.py --dry-run
+
+      - name: Run the smoke test against production
+        working-directory: ${{ env.SMOKE_DIR }}
+        env:
+          AIVANA_API_KEY: ${{ secrets.AIVANA_API_KEY }}
+        run: ${{ env.SMOKE_PY }} smoke.py
