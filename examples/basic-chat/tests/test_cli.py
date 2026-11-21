@@ -240,3 +240,10 @@ def test_ctrl_c_during_an_answer_stops_the_server_promptly_and_cancels_the_call(
                 child.kill()
             _, err = child.communicate(timeout=10)
         assert "Traceback" not in err, err
+
+
+def test_an_older_python_is_told_plainly_before_anything_is_imported(monkeypatch, capsys):
+    monkeypatch.setattr(cli.sys, "version_info", (3, 10, 14, "final", 0))
+    for command in ([], ["doctor"], ["setup"], ["verify-live", "--billable"]):
+        assert cli.main(command) == 1
+        assert "needs Python 3.11 or newer" in capsys.readouterr().err

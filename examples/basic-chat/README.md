@@ -12,7 +12,7 @@ Tracked in [Python SDK #24](https://github.com/Aivana-Inc/aivana-sdk-python/issu
 ## Standalone download (no Git required)
 
 Download the approved `aivana-basic-chat-python.zip` release and extract it into a new
-folder. Requires Python 3.10+. Open a terminal in that folder and run:
+folder. Requires Python 3.11 or newer. Open a terminal in that folder and run:
 
 ```sh
 python -m venv .venv
@@ -107,7 +107,8 @@ package. Keep custom-named private exports out of your own Git commits too.
 
 ## Start from a fresh clone
 
-Requires **Python 3.10 or newer** and an active Aivana API key with available usage credit.
+Requires **Python 3.11 or newer** (the `aivana` SDK itself supports 3.10, but the current FastAPI and Starlette
+versions this starter pins do not) and an active Aivana API key with available usage credit.
 
 ```sh
 git clone https://github.com/Aivana-Inc/aivana-sdk-python.git

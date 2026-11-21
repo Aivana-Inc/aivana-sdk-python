@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-MIN_PYTHON = (3, 10)
+MIN_PYTHON = (3, 11)  # FastAPI and Starlette's current versions need it (the SDK itself supports 3.10)
 
 
 def _load_env_file() -> None:
@@ -184,6 +184,9 @@ async def _verify_live() -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if sys.version_info < MIN_PYTHON:
+        print(f"This starter needs Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]} or newer. Install it, make a new virtual environment, and try again.", file=sys.stderr)
+        return 1
     args = list(sys.argv[1:] if argv is None else argv)
     command = args[0] if args else "start"
     if command == "setup":

@@ -149,7 +149,7 @@ class RequestGuard:
         while True:
             try:
                 message = await asyncio.wait_for(receive(), max(deadline - loop.time(), 0))
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 await refuse(408, "request_timeout", "The request took too long to arrive. Try again.", close=True)
                 return None
             if message["type"] == "http.disconnect":
