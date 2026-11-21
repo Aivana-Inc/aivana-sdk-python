@@ -68,8 +68,10 @@ def stub(quirk=None):
             if quirk == "rate-limited" and key == GOOD_KEY:
                 status, payload = _envelope("rate_limit_exceeded", "Too many requests", 429)
                 return self._send(status, payload, {"Retry-After": "0"})
-            if (quirk != "accepts-bad-requests"
-                    and body.get("effort", "auto") not in ("auto", "low", "medium", "high")):
+            # What the real API does (intelligence_engine/api/envelopes.py): temperature must be 0..2, so 5 is a 422
+            # before any work; an unknown `effort` is NOT an error (it is quietly treated as "auto"), so it is accepted.
+            temp = body.get("temperature")
+            if (quirk != "accepts-bad-requests" and isinstance(temp, (int, float)) and (temp > 2 or temp < 0)):
                 return self._send(*_envelope("invalid_request", "The request body or query is not valid.", 422))
             if quirk == "no-credit" and body.get("effort") == "low":
                 return self._send(*_envelope("insufficient_credit", "Your balance is empty.", 402))
@@ -347,3 +349,17 @@ def test_judge_cancel_in_flight_and_cancelled_but_it_ends_any_other_way_is_a_fai
 def test_judge_cancel_in_flight_but_slow_to_take_effect_is_a_failure_with_the_limit_given():
     assert _judge(took_s=5.0) == "fail"
     assert _judge(took_s=4.99) == "pass"
+
+
+def test_the_bad_request_check_uses_an_out_of_range_temperature_never_an_unknown_effort():
+    """The real API refuses temperature 5 but quietly accepts an unknown effort (it treats it as auto)."""
+    with stub() as (base, seen):
+        code, out, _ = run_script({"AIVANA_API_KEY": GOOD_KEY, "AIVANA_API_BASE": base})
+        assert code == 0, out
+        bad = [r for r in seen if r["body"].get("temperature") == 5]
+        assert len(bad) == 1
+        assert "effort" not in bad[0]["body"], "the invalid request must not rely on effort"
+        import httpx
+        res = httpx.post(base + "/v1/generate", headers={"X-API-Key": GOOD_KEY},
+                         json={"prompt": "x", "effort": "not-a-real-effort"})
+        assert res.status_code == 200
