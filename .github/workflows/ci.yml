@@ -37,6 +37,36 @@ jobs:
       - name: The installed aivana command runs
         run: aivana --version
 
+  # The Basic AI Chat starter (examples/basic-chat) has its own dependencies (FastAPI, uvicorn), so it is tested
+  # apart from the SDK. Its tests run the real app and the real SDK on loopback and make no billed calls; the Stop
+  # tests are the guard on upgrading the pinned Starlette and uvicorn. Linux only so far: macOS and Windows are untried.
+  starter:
+    name: basic-chat starter
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    defaults:
+      run:
+        working-directory: examples/basic-chat
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - run: pip install -r requirements-dev.txt
+
+      - run: python -m pytest -q
+
+      - run: ruff check .
+
   # One fixed check name, `lint-and-build`, so a single org-level ruleset can
   # require it in every code repo. Don't rename it, and keep it separate from
   # the `test` matrix above. The repo has no ruff configuration, so lint is

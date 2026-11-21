@@ -1,0 +1,17 @@
+{
+  "source": "Aivana-Inc/aivana-sdk-node, examples/basic-chat/public",
+  "node_commit": "356533dbd88398854fa32dd2dc74bfc2d44f0249",
+  "files": {
+    "app.js": "7fe1ddc64a7778be3a140f87761f21e8f6be4936adae1d59b8df1ede6f2fc4e2",
+    "assets/README.md": "b0365d5aa249d1c48dafd259d94cce7dbffa4d18d70ff2c2562bce642f512faa",
+    "assets/aivana-logo.avif": "377ea8b3d11482e267063f9dc3f52c0d191265c2f7e0e10083b86c11c6a8370a",
+    "assets/aivana-sparkle.avif": "d4223905715e460e1a2101697796a7d97bce4b5aa1559ca6cee21bf8cc526ed4",
+    "conversation.mjs": "3034d7a23127537b76411bf385ceb965c529e5417f3bd1092f7aea58bc863a22",
+    "highlight.mjs": "f7e6e4f40ff5a01bc72ab41a5c57c2f1754856c9e08454d32bf912ac149ff7ef",
+    "index.html": "5d0f6b673a654346f8da68f08aa89e3e1067f5a3cf4f3f0b733d9bde3417c325",
+    "markdown.mjs": "3f650c501d6431d978fa5894037bc69db98dee0505c9789dab24673ef67d3848",
+    "render.mjs": "bceb8b845854a168145668a5973ec55519305f9fd55c8a383f8bb1fe88750efa",
+    "styles.css": "31817c900ec0c682b4f730331215c311975665107d434c0161a41cdd4def0c20",
+    "typing.mjs": "0da7495a6d4892cdb9730bf1db401d091f073965598667c769490adcbea2aa97"
+  }
+}

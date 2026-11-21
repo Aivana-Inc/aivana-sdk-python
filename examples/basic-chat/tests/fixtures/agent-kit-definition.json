@@ -1,0 +1,18 @@
+{
+  "purpose": "Help users",
+  "configuration": {
+    "system": "Be clear",
+    "effort": "auto",
+    "web_search": false,
+    "temperature": 0.7,
+    "top_p": null,
+    "max_tokens": 2048,
+    "stop_sequences": [],
+    "response_format": {
+      "type": "text"
+    }
+  },
+  "conversation": {
+    "history": "session"
+  }
+}
