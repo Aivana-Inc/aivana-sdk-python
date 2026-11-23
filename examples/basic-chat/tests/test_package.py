@@ -85,3 +85,12 @@ def test_the_extracted_package_runs_setup_and_doctor_from_a_path_with_spaces(tmp
     assert doctor.returncode == 0, doctor.stderr
     assert "http://127.0.0.1:4567" in doctor.stdout and KEY not in doctor.stdout + doctor.stderr
     assert not (out / "blueprint-definition.json").exists()
+
+
+def test_the_verification_tool_passes_on_a_freshly_built_package(tmp_path):
+    """The same check the 'Basic Chat download' workflow runs on every operating system, here on this one."""
+    out = package(tmp_path / "a folder with spaces")
+    done = subprocess.run([sys.executable, str(ROOT / "tools" / "verify_package.py"), str(out)], capture_output=True, text=True, timeout=300)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "Extracted download passed" in done.stdout and "No billed calls" in done.stdout
+    assert KEY not in done.stdout + done.stderr

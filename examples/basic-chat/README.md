@@ -37,11 +37,13 @@ local `.env` yourself. Keep any application changes in your own Git repository a
 them when upgrading. To uninstall, remove the extracted folder (including its local key
 file) after saving your own work.
 
-Release maintainers generate this download with
-`python tools/package_starter.py NEW_OUTPUT_DIRECTORY` from the SDK repository, then zip the folder.
-Only an explicit file allowlist is copied; the package never includes `.env`, a private Blueprint,
-tests, caches or Git history. `MANIFEST.json` records file checksums. A package is not a public
-release until maintainers publish it.
+Release maintainers build this download with the **Basic Chat download (Python)** workflow
+(Actions, Run workflow, choosing the release's tag), which runs `python tools/package_starter.py NEW_OUTPUT_DIRECTORY`
+and zips the folder. It then extracts the ZIP into a folder with spaces in its name and checks it on Linux, macOS and
+Windows with Python 3.11, 3.12 and 3.13, with fresh dependencies and no API key (`tools/verify_package.py`). Only an
+explicit file allowlist is copied; the package never includes `.env`, a private Blueprint, tests, caches or Git history.
+`MANIFEST.json` records file checksums, and the workflow's run summary shows the ZIP's SHA-256 to compare with the release
+file's digest once it is attached. A package is not a public release until maintainers attach it to a release.
 
 ## Use an Agent Kit blueprint
 
