@@ -1,6 +1,6 @@
 # Basic AI Chat (Python)
 
-A small browser chat application using the **released `aivana` Python SDK 0.4.0**.
+A small browser chat application using the **released `aivana` Python SDK 0.4.1**.
 Send a message, get an Aivana answer, then ask a follow-up. The API key stays on the
 Python server. There is no frontend build step, account system or database.
 
