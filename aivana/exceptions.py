@@ -53,6 +53,7 @@ class RateLimitError(AivanaError):
         self.retry_after = retry_after
 
 class UpstreamError(AivanaError): ...
+class UnsupportedAPIError(AivanaError): ...
 
 
 def from_error_payload(payload: dict, http_status: int,
