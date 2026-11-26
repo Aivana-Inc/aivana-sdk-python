@@ -1,4 +1,8 @@
-"""Candidate source checkout only; do not enable before verified API rollout."""
+"""Run a saved Blueprint by id and version.
+
+Needs AIVANA_API_KEY, AIVANA_API_BASE, AIVANA_BLUEPRINT_ID and AIVANA_BLUEPRINT_VERSION (a number or
+'latest'). Each run can consume normal generation credit.
+"""
 import os
 import re
 import sys

@@ -1,4 +1,9 @@
-# Blueprint SDK validation — November 11, 2026
+# Blueprint SDK validation
+
+Sections are dated and kept as the record of what was true then; the newest result is at the bottom.
+The first sections describe November 11, when no API had the routes, and are superseded by the later ones.
+
+## November 11, 2026
 
 Scope: [Iteration 6 SDK card](https://trello.com/c/0Rb6idgP), SDK portion of API #367.
 Windows, Python 3.12.14. Both SDK repositories were freshly cloned and then pulled
@@ -19,7 +24,7 @@ from main before implementation; both pulls reported up to date.
 - Async checks needed normal Windows event-loop access; the restricted process could not
   initialize its local socketpair. The successful run used the same tests unmodified.
 
-## Live endpoint result and remaining gate
+## Live endpoint result and remaining gate (as of November 11; see the later sections)
 
 API documentation names `https://dev-developers.aivana.ai` as the development endpoint.
 On November 11, the Node counterpart probed both routes with the existing approved
@@ -29,7 +34,7 @@ code **blueprint_invocation_unsupported**. No fallback was sent and no keys were
 There is no successful live candidate Blueprint run in this evidence. Person 1/API owner
 must deploy the routes and supply an authorized saved synthetic Blueprint/version, then
 the examples must pass against that candidate and API authorization/isolation/billing
-gates must be recorded. The Trello card remains incomplete until that acceptance run.
+gates must be recorded.
 SDK-maintainer review and verified production API rollout are release gates; this work
 publishes no package or production deployment.
 
@@ -59,6 +64,27 @@ Checked and passing (sync and async where the SDK has both):
   nothing else: no fallback to ordinary Generate.
 - No key is a 401.
 
-Still not proved: a run against a DEPLOYED environment (the dev API at the time of writing may
-not yet carry the routes), a real model's answer, and the rolling-deploy 404 on a real deploy.
-Those remain release gates, with SDK-maintainer review.
+Still not proved at that time: a run against a DEPLOYED environment (the next section), a real model's
+answer, and the rolling-deploy 404 on a real deploy.
+
+## Run against the development API, November 24, 2026
+
+Environment: the development API at `https://dev-developers.aivana.ai`, after the API change that adds
+the routes (aivana-intelligence-api#400) was deployed there by its normal pipeline that day. The deployed
+revision identifier was not recorded. A scoped, spend-limited development key from a synthetic workspace
+was used and never printed. Only requests for a deliberately nonexistent Blueprint id were sent, so
+nothing was generated or charged. The SDK was run from the head of the pull request that added it.
+
+Passing, from this SDK against the deployed API:
+
+- Pinned version 1, `latest`, the streaming route and the async call each answered `blueprint_not_found`:
+  the routes are deployed and Blueprint storage is configured. None was reported as `UnsupportedAPIError`.
+  Request ids: `req_48bb329e776f1418eaf89e5a`, `req_7a2bee6b705379ba783708af`, `req_f64a87ba4ad87edaa5278b56`.
+- Version `0`, `"Latest"` and a saved-settings override are refused client-side with nothing sent.
+
+Direct probes of the same routes returned `422` for a malformed version, with the API's own wording.
+
+**Not verified as of this record:** a successful pinned or `latest` run, normal, streaming or async,
+against a saved Blueprint on a deployed environment; workspace isolation, member permissions and billing
+on a deployed environment; the routes on production; a real model's answer; the rolling-deploy 404 on a
+real deploy. Update this section with the date and request ids when any of these is run.
