@@ -632,6 +632,14 @@ aivana.Chat(max_retries=0)              # so does a Chat's
 Retries apply to `generate`, `generate_async`, `generate_stream`, streaming and `Chat`
 (a streamed answer is only retried before its first byte, never in the middle of one).
 
+## Unreleased candidate: saved Blueprint invocation
+
+The source branch includes `aivana.blueprints.generate` and `aivana.blueprints.stream`,
+with asynchronous counterparts. They require a saved Blueprint ID and explicit version
+and never fall back to ordinary Generate. See the [candidate integration guide](docs/blueprint-invocation.md)
+for examples, checks and the API deployment and maintainer release gates.
+This is not a published capability.
+
 ## License
 
 Apache-2.0
