@@ -1,4 +1,4 @@
-"""Execute candidate examples through real HTTP without contacting Aivana."""
+"""Execute the Blueprint examples through real HTTP without contacting Aivana."""
 import json
 import os
 from pathlib import Path

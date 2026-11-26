@@ -632,13 +632,39 @@ aivana.Chat(max_retries=0)              # so does a Chat's
 Retries apply to `generate`, `generate_async`, `generate_stream`, streaming and `Chat`
 (a streamed answer is only retried before its first byte, never in the middle of one).
 
-## Unreleased candidate: saved Blueprint invocation
+## Saved Blueprint invocation
 
-The source branch includes `aivana.blueprints.generate` and `aivana.blueprints.stream`,
-with asynchronous counterparts. They require a saved Blueprint ID and explicit version
-and never fall back to ordinary Generate. See the [candidate integration guide](docs/blueprint-invocation.md)
-for examples, checks and the API deployment and maintainer release gates.
-This is not a published capability.
+Run a saved, versioned Blueprint from your workspace by its id. You send only the input; the
+instructions and settings come from the saved version, so every call uses the same configuration
+until you choose another version.
+
+```python
+result = aivana.blueprints.generate(id="bp_...", version=3, prompt="Draft a reply.")
+print(result.answer)
+print(result.blueprint)  # id and version: the version that actually ran
+
+for chunk in aivana.blueprints.stream(id="bp_...", version="latest", prompt="Draft a reply."):
+    if chunk.event == "delta":
+        print(chunk.delta, end="")
+    if chunk.event == "done":
+        print(chunk.data["blueprint"])
+```
+
+Async equivalents are `aivana.blueprints.generate_async(...)` and `aivana.blueprints.stream_async(...)`.
+
+- **A version is always explicit:** a positive whole number, or `"latest"` on purpose. Nothing defaults
+  to latest, and `result.blueprint.version` always names the version that ran. Pin a number in production.
+- **Only runtime input is accepted** (prompt or messages, attachments, metadata and the other
+  per-request fields). Saved settings cannot be overridden: an unknown option, or a saved setting
+  such as `system`, is refused before anything is sent.
+- **No automatic retries, and no fallback to ordinary Generate.** Your code decides whether to send a
+  Blueprint call again.
+- **Two different 404s:** a missing Blueprint or version is an `AivanaError` with code
+  `blueprint_not_found`; an API that does not offer Blueprint invocation raises `UnsupportedAPIError`
+  (`blueprint_invocation_unsupported`).
+- A Blueprint call is charged and limited like the equivalent Generate request.
+
+See the [guide](docs/blueprint-invocation.md) for the full contract, examples and checks.
 
 ## License
 

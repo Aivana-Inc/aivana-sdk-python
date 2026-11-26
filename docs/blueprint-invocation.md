@@ -1,12 +1,11 @@
-# Saved Blueprint invocation — unreleased candidate
+# Saved Blueprint invocation
 
-Implements the SDK portion of [API #367](https://github.com/Aivana-Inc/aivana-intelligence-api/issues/367)
-and [Iteration 6 SDK integration](https://trello.com/c/0Rb6idgP).
-These methods are candidate code, not an available published release. Do not publish or
-enable them until the API routes are deployed and verified in production and SDK maintainers approve release.
+SDK support for running a saved Blueprint by id and version: the SDK portion of
+[API #367](https://github.com/Aivana-Inc/aivana-intelligence-api/issues/367).
 
-Create and save the Blueprint in AI Studio. Invocation uses its ID, an explicit version
-and runtime input. Management from scoped API keys belongs to API #366.
+Create and save the Blueprint in your workspace first. Invocation uses its ID, an explicit version
+and runtime input. Management from scoped API keys is a separate feature
+([API #366](https://github.com/Aivana-Inc/aivana-intelligence-api/issues/366)).
 
 ## Contract
 
@@ -27,7 +26,7 @@ and runtime input. Management from scoped API keys belongs to API #366.
   errors raise instead of silently presenting a partial answer as complete.
 - Module-level API key and API base configuration is read per request, just like Generate.
 
-## Candidate examples
+## Examples
 
 Install this source checkout with `python -m pip install -e .`, then configure
 `AIVANA_API_KEY`, `AIVANA_API_BASE`, `AIVANA_BLUEPRINT_ID`, `AIVANA_BLUEPRINT_VERSION`.
@@ -54,7 +53,7 @@ in seconds, following the existing httpx timeout behavior. To stop early, use
 `contextlib.closing(aivana.blueprints.stream(...))` or `contextlib.aclosing` for the async
 iterator, so the connection closes immediately when a loop breaks. No history is stored.
 
-## Repeatable checks and release gate
+## Repeatable checks
 
 ```sh
 python -m pip install . pytest build ruff==0.6.9
@@ -66,10 +65,16 @@ python -m build
 `conformance/blueprints.json` is synthetic and byte-identical in both SDK repositories.
 It covers the real SDK transport with mocked responses, not deployed server behavior.
 
-Person 1/API owner must provide the deployed candidate and authorized synthetic workspace,
-saved Blueprint and version. Run both examples normally and streaming with pinned version
-and explicit latest. Record resolved references, request IDs, date and results; verify
-invalid credentials, missing/foreign versions, insufficient scope and unsupported routes.
-Complete the API isolation/billing gates, obtain SDK-maintainer review and verify API
-production rollout before enabling clients. Then update AI Studio Docs (cURL, Python,
-Node.js), bump the package version using RELEASING.md, and publish. No release is made here.
+## Before releasing a version
+
+[blueprint-validation.md](blueprint-validation.md) records what has and has not been checked against a
+real, deployed API. A maintainer releasing a version that includes these methods confirms, against the
+environment being released:
+
+- a saved synthetic Blueprint with two versions runs normally and streaming (and async), pinned and
+  explicit `latest`, and the response names the resolved reference;
+- a missing or foreign Blueprint is `blueprint_not_found`, bad credentials and a missing scope are
+  refused, and an API without the routes raises `UnsupportedAPIError`, with no fallback to Generate;
+- the API's isolation and billing behave as for the equivalent Generate request.
+
+Then bump the package version and publish, following [RELEASING.md](../RELEASING.md).
